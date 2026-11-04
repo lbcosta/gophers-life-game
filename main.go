@@ -8,8 +8,10 @@ import (
 	"log"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
 	"gophers-life-game/gopher"
+	"gophers-life-game/hud"
 	"gophers-life-game/world"
 )
 
@@ -28,6 +30,12 @@ const plantsPerGopher = 2
 //go:embed assets/plants/*.png
 var plantsFS embed.FS
 
+// profilesFS tem as fotos de perfil dos Gophers (assets/profiles), embutidas no
+// binário.
+//
+//go:embed assets/profiles/*.png
+var profilesFS embed.FS
+
 // grassPNG é a textura de grama, embutida no binário para o jogo
 // funcionar independentemente do diretório em que for executado.
 //
@@ -37,6 +45,7 @@ var grassPNG []byte
 type Game struct {
 	gophers *gopher.Colony
 	world   *world.World
+	photos  *hud.Photos
 
 	prerendered bool // os sprites já foram preparados (só dá depois que o jogo roda)
 
@@ -97,6 +106,7 @@ func (g *Game) Update() error {
 	if !g.prerendered {
 		gopher.Prerender()
 		g.world.Prerender()
+		g.photos.Prerender()
 		g.prerendered = true
 	}
 
@@ -116,6 +126,15 @@ func (g *Game) Update() error {
 	mx, my := ebiten.CursorPosition()
 	g.gophers.Hover(float64(mx), float64(my))
 
+	// Um clique escolhe o Gopher sob o mouse (ou desfaz a escolha, se não houver
+	// nenhum). Cliques sobre o painel de perfil não contam.
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		onPanel := g.gophers.Selected() != nil && hud.PanelContains(mx, my, g.screen.X)
+		if !onPanel {
+			g.gophers.Select(float64(mx), float64(my))
+		}
+	}
+
 	return nil
 }
 
@@ -124,6 +143,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.drawBackground(screen)
 	g.world.Draw(screen)
 	g.gophers.Draw(screen)
+	if selected := g.gophers.Selected(); selected != nil {
+		hud.DrawProfile(screen, selected.Profile(), g.photos)
+	}
 }
 
 // Layout define a resolução lógica: acompanha o tamanho da tela. Só registra
@@ -150,7 +172,13 @@ func main() {
 		log.Fatal(err)
 	}
 
+	photos, err := hud.LoadPhotos(profilesFS)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	game := &Game{
+		photos:  photos,
 		gophers: gopher.NewColony(gopherCount),
 		world:   world.New(gopherCount*plantsPerGopher, sprites),
 		grass:   grass,

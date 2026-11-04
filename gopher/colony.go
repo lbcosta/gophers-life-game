@@ -13,9 +13,10 @@ import (
 // nasce longe dos que já foram espalhados, e só então andam e aparecem na tela.
 // Os que morrem de fome somem dela.
 type Colony struct {
-	gophers []*Gopher
-	spawned bool    // os Gophers já foram espalhados pela tela
-	hovered *Gopher // o Gopher sob o mouse, ou nil; seu nome é mostrado por Draw
+	gophers  []*Gopher
+	spawned  bool    // os Gophers já foram espalhados pela tela
+	hovered  *Gopher // o Gopher sob o mouse, ou nil; seu nome é mostrado por Draw
+	selected *Gopher // o Gopher clicado, ou nil; fica marcado e pode ser acompanhado
 }
 
 // MaxGophers é o maior número de Gophers que uma colônia comporta.
@@ -93,6 +94,18 @@ func (c *Colony) Hover(x, y float64) {
 	c.hovered = c.At(x, y)
 }
 
+// Select informa um clique em (x, y). O Gopher que estiver ali passa a ser o
+// selecionado; se não houver nenhum, a seleção é desfeita.
+func (c *Colony) Select(x, y float64) {
+	c.selected = c.At(x, y)
+}
+
+// Selected devolve o Gopher selecionado, ou nil. Se ele morreu depois de
+// selecionado, continua sendo devolvido, para dar para ver o que aconteceu.
+func (c *Colony) Selected() *Gopher {
+	return c.selected
+}
+
 // Gophers devolve os Gophers vivos da colônia.
 func (c *Colony) Gophers() []*Gopher {
 	return c.gophers
@@ -111,6 +124,9 @@ func (c *Colony) Draw(screen *ebiten.Image) {
 	}
 	for _, g := range c.gophers {
 		g.drawFigure(screen)
+	}
+	if c.selected != nil && c.selected.Alive() {
+		c.selected.drawSelection(screen)
 	}
 	// O nome vem por último, para nunca ficar atrás de outro Gopher.
 	if c.hovered != nil && c.hovered.Alive() {

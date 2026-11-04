@@ -306,3 +306,11 @@ func (g *Gopher) drawName(screen *ebiten.Image) {
 	op.ColorScale.ScaleWithColor(nameTextColor)
 	text.Draw(screen, g.name, face, op)
 }
+
+// selectionColor é a cor do anel que marca o Gopher selecionado.
+var selectionColor = color.NRGBA{255, 255, 255, 230}
+
+// drawSelection desenha um anel ao redor da hit box do Gopher.
+func (g *Gopher) drawSelection(screen *ebiten.Image) {
+	vector.StrokeCircle(screen, float32(g.x), float32(g.y), float32(g.hitbox())+3, 2, selectionColor, true)
+}

@@ -55,9 +55,11 @@ type Gopher struct {
 	satiety       int      // quando chega a zero, o Gopher morre
 	steps         int      // passos dados; a cada stepsPerSatiety, perde 1 de saciedade
 
+	speed    Speed      // velocidade sorteada no nascimento
 	stepSize float64    // pixels por passo; vem da Speed
 	body     color.RGBA // cor do corpo e das orelhas
 	name     string     // sorteado de Names no nascimento
+	emotion  Emotion    // sorteada no nascimento
 
 	heading float64 // direção do movimento, em graus [0, 360)
 	facing  float64 // direção para a qual o desenho aponta; gira até alcançar heading
@@ -78,6 +80,8 @@ func NewGopher(speed Speed, body color.RGBA) *Gopher {
 	g.maturity = newMaturity(g.intn)
 	g.age = 0
 	g.name = Names[g.intn(len(Names))]
+	g.emotion = Emotion(g.intn(numEmotions))
+	g.speed = speed
 	g.stepSize = speed.step()
 	g.body = body
 	return g
@@ -94,6 +98,7 @@ func newGopher(chance func() float64, intn func(n int) int) *Gopher {
 		y:        hitboxRadius,
 		maturity: middleMaturity(),
 		satiety:  initialSatiety,
+		speed:    Normal,
 		stepSize: Normal.step(),
 		body:     Palette[0],
 		heading:  heading,

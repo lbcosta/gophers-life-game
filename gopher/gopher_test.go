@@ -1224,3 +1224,118 @@ func TestNewColonyCapsTheNumberOfGophers(t *testing.T) {
 		}
 	}
 }
+
+func TestPaletteNamesMatchPalette(t *testing.T) {
+	if len(PaletteNames) != len(Palette) {
+		t.Fatalf("%d nomes de cor para %d cores", len(PaletteNames), len(Palette))
+	}
+	for i, c := range Palette {
+		if colorName(c) != PaletteNames[i] {
+			t.Errorf("colorName(Palette[%d]) = %q, esperado %q", i, colorName(c), PaletteNames[i])
+		}
+	}
+	if got := colorName(color.RGBA{1, 2, 255, 255}); got != "#0102FF" {
+		t.Errorf("cor fora da paleta: %q, esperado #0102FF", got)
+	}
+}
+
+func TestProfileDescribesTheGopher(t *testing.T) {
+	g := NewGopher(Fast, Palette[3])
+	g.maturity = maturity{600, 1200, 1800}
+	g.age = 300
+	g.satiety = 7
+
+	p := g.Profile()
+	if p.Name != g.name || p.Color != Palette[3] || p.ColorName != PaletteNames[3] {
+		t.Errorf("nome/cor errados: %+v", p)
+	}
+	if p.Speed != Fast || p.StepSize != Fast.step() || p.Satiety != 7 || !p.Alive {
+		t.Errorf("velocidade/saciedade/vida erradas: %+v", p)
+	}
+	if p.Stage != Baby || p.Age != 5 || p.Radius != g.hitbox() {
+		t.Errorf("fase/idade/raio errados: %+v", p)
+	}
+	if !p.HasNextStage || p.NextStage != Child || p.NextStageIn != 5 {
+		t.Errorf("próxima fase errada: %+v, esperado criança em 5 s", p)
+	}
+
+	g.age = 5000
+	if p := g.Profile(); p.Stage != Adult || p.HasNextStage {
+		t.Errorf("adulto tem próxima fase: %+v", p)
+	}
+
+	g.satiety = 0
+	if p := g.Profile(); p.Alive || p.Satiety != 0 {
+		t.Errorf("morto aparece vivo ou com saciedade: %+v", p)
+	}
+}
+
+func TestSelectPicksClearsAndKeepsTheDead(t *testing.T) {
+	c := newTestColony(2, 51, 52)
+	c.Resize(800, 600)
+	a := c.gophers[0]
+	a.x, a.y = 300, 300
+	c.gophers[1].x, c.gophers[1].y = 600, 100
+
+	c.Select(300, 300)
+	if c.Selected() != a {
+		t.Fatalf("Selected = %v, esperado a", c.Selected())
+	}
+	c.Select(700, 500) // clique no vazio
+	if c.Selected() != nil {
+		t.Errorf("Selected = %v depois de clicar no vazio, esperado nil", c.Selected())
+	}
+
+	c.Select(300, 300)
+	a.satiety = 1
+	a.steps = stepsPerSatiety - 1
+	for range walkEveryTicks {
+		c.Update(nil)
+	}
+	if a.Alive() {
+		t.Fatal("o Gopher devia ter morrido")
+	}
+	if c.Selected() != a || c.Selected().Profile().Alive {
+		t.Error("o selecionado que morreu devia continuar selecionado, como morto")
+	}
+}
+
+func TestPaletteSlugsMatchPalette(t *testing.T) {
+	if len(PaletteSlugs) != len(Palette) {
+		t.Fatalf("%d slugs para %d cores", len(PaletteSlugs), len(Palette))
+	}
+}
+
+func TestPhotoNameIsAlwaysOfTheGophersOwnColor(t *testing.T) {
+	seen := map[string]bool{}
+	for i, c := range Palette {
+		for _, e := range Emotions {
+			name := PhotoName(c, e)
+			if !strings.HasPrefix(name, PaletteSlugs[i]+"_") || !strings.HasSuffix(name, ".png") {
+				t.Errorf("PhotoName(%s, %v) = %q, esperado começar com %q", PaletteNames[i], e, name, PaletteSlugs[i]+"_")
+			}
+			if seen[name] {
+				t.Errorf("nome de foto repetido: %q", name)
+			}
+			seen[name] = true
+		}
+	}
+	if got := PhotoName(color.RGBA{1, 2, 3, 255}, Happy); got != "" {
+		t.Errorf("cor fora da paleta tem foto %q, esperado nenhuma", got)
+	}
+}
+
+func TestNewGopherDrawsEmotionAtBirth(t *testing.T) {
+	seen := map[Emotion]bool{}
+	for range 500 {
+		g := NewGopher(Normal, Palette[2])
+		seen[g.emotion] = true
+		p := g.Profile()
+		if p.Emotion != g.emotion || p.Photo != PhotoName(Palette[2], g.emotion) {
+			t.Fatalf("perfil %+v não combina com a emoção %v e a cor do Gopher", p, g.emotion)
+		}
+	}
+	if len(seen) != numEmotions {
+		t.Errorf("sorteadas %d emoções em 500 Gophers, esperado todas as %d", len(seen), numEmotions)
+	}
+}

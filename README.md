@@ -15,7 +15,9 @@ por cima de uma semente não faz nada, passar por uma planta crescendo a desfaz,
 e passar por uma pronta é comê-la: batata, cenoura e rabanete dão +2 de
 saciedade, e capim, trevo e alfafa dão +1. Todo Gopher nasce com saciedade 10,
 perde 1 a cada 100 passos e morre (some) ao chegar a zero. Cada Gopher também
-nasce com um nome sorteado (nunca repetido), que aparece quando o mouse passa por cima dele.
+nasce com um nome sorteado (nunca repetido), que aparece quando o mouse passa por cima dele. Clicar em um Gopher abre, do
+lado direito da tela, um painel com as características dele (nome, cor,
+foto, emoção, velocidade, saciedade, fase da vida, idade e tamanho); clicar no vazio fecha o painel.
 
 ## Como executar
 
@@ -43,12 +45,17 @@ go test ./...
   - `interaction.go`: colisões entre Gophers e as reações a elas.
   - `personality.go`: velocidades, paleta de cores e criação de Gophers sorteados.
   - `colony.go`: vários Gophers na mesma tela e o hover do mouse.
+  - `profile.go`: a fotografia das características de um Gopher, mostrada no painel.
   - `names.go` e `names.txt`: os nomes que os Gophers podem receber, e de onde vieram.
   - `draw.go` e `ellipse.go`: desenho.
+- `hud/`: a interface sobreposta ao jogo (o painel de perfil do Gopher).
 - `world/`: os objetos do mundo.
   - `plant.go`: tipos de alimento, fases de crescimento e maturidade sorteada.
   - `world.go`: plantio, crescimento e o que acontece quando um Gopher passa por cima.
   - `sprites.go`: carrega e pré-renderiza os sprites das plantas.
+- `cmd/genprofiles/`: gera as fotos de perfil (uma por cor e emoção). Rode `go run ./cmd/genprofiles`; com `-sheet arquivo.png`, grava também uma folha com todas.
+- `internal/raster/`: desenho de formas com contorno, usado pelos dois geradores.
 - `cmd/genassets/`: gera os sprites das plantas. Rode `go run ./cmd/genassets` para refazê-los.
 - `assets/grass.png`: textura de grama.
+- `assets/profiles/`: fotos de perfil dos Gophers, 256x256 (7 cores × 5 emoções). Cada Gopher sorteia a emoção no nascimento, e o painel mostra a foto da cor e da emoção dele.
 - `assets/plants/`: sprites das plantas (semente, broto e os seis alimentos).

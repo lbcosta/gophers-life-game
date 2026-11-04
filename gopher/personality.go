@@ -53,6 +53,56 @@ var Palette = []color.RGBA{
 	{0xA9, 0x74, 0x4F, 255}, // Cacau: marrom terroso
 }
 
+// PaletteNames são os nomes das cores de Palette, na mesma ordem.
+var PaletteNames = []string{"Clássico", "Cereja", "Tangerina", "Ouro", "Chiclete", "Uva", "Cacau"}
+
+// PaletteSlugs são os nomes das cores de Palette em minúsculas e sem acento, na
+// mesma ordem, como aparecem nos nomes dos arquivos das fotos de perfil.
+var PaletteSlugs = []string{"classico", "cereja", "tangerina", "ouro", "chiclete", "uva", "cacau"}
+
+// Emotion é a emoção de um Gopher, sorteada no nascimento. Aparece na foto de
+// perfil, como o formato dos olhos.
+type Emotion int
+
+const (
+	Neutral Emotion = iota
+	Surprised
+	Suspicious
+	Sleepy
+	Happy
+
+	numEmotions = iota
+)
+
+// Emotions lista as emoções.
+var Emotions = [numEmotions]Emotion{Neutral, Surprised, Suspicious, Sleepy, Happy}
+
+// emotionNames e emotionSlugs são, para cada Emotion, o nome e o trecho do
+// nome do arquivo da foto.
+var (
+	emotionNames = [numEmotions]string{Neutral: "neutro", Surprised: "surpreso", Suspicious: "desconfiado", Sleepy: "sonolento", Happy: "feliz"}
+	emotionSlugs = emotionNames
+)
+
+func (e Emotion) String() string {
+	if e < 0 || int(e) >= numEmotions {
+		return fmt.Sprintf("Emotion(%d)", int(e))
+	}
+	return emotionNames[e]
+}
+
+// PhotoName devolve o nome do arquivo da foto de perfil de um Gopher de corpo
+// na cor color e emoção emotion, ou "" se color não for da paleta. A foto é
+// sempre da cor do Gopher: o nome é montado a partir da própria cor.
+func PhotoName(color color.RGBA, emotion Emotion) string {
+	for i, c := range Palette {
+		if c == color {
+			return PaletteSlugs[i] + "_" + emotionSlugs[emotion] + ".png"
+		}
+	}
+	return ""
+}
+
 // NewGophers cria n Gophers, cada um com velocidade e cor sorteadas.
 //
 // A velocidade é sorteada para cada Gopher, de forma independente. A cor é
