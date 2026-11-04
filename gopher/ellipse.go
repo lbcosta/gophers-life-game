@@ -13,6 +13,12 @@ const ellipseSegments = 32
 
 type point struct{ x, y float32 }
 
+// rotate gira p em torno da origem pelo ângulo de seno sin e cosseno cos
+// (sentido horário na tela, a mesma rotação de ebiten.GeoM.Rotate).
+func (p point) rotate(sin, cos float32) point {
+	return point{x: p.x*cos - p.y*sin, y: p.x*sin + p.y*cos}
+}
+
 // ellipsePoints devolve os vértices do polígono que aproxima uma elipse de
 // centro (cx, cy) e raios rx (horizontal) e ry (vertical), girada por angle
 // graus (sentido horário na tela).
@@ -26,14 +32,9 @@ func ellipsePoints(cx, cy, rx, ry float32, angle float64) [ellipseSegments]point
 	var pts [ellipseSegments]point
 	for i := range pts {
 		sinT, cosT := math.Sincos(2 * math.Pi * float64(i) / ellipseSegments)
-		// Ponto na elipse sem rotação, em relação ao centro.
-		px := rx * float32(cosT)
-		py := ry * float32(sinT)
-		// Rotação e translação.
-		pts[i] = point{
-			x: cx + px*cosA - py*sinA,
-			y: cy + px*sinA + py*cosA,
-		}
+		// Ponto na elipse sem rotação, em relação ao centro; depois gira e translada.
+		p := point{rx * float32(cosT), ry * float32(sinT)}.rotate(sinA, cosA)
+		pts[i] = point{cx + p.x, cy + p.y}
 	}
 	return pts
 }

@@ -1,6 +1,7 @@
 package gopher
 
 import (
+	"fmt"
 	"image/color"
 	"math/rand/v2"
 )
@@ -19,25 +20,23 @@ const (
 // Speeds lista as velocidades, da mais lenta à mais rápida.
 var Speeds = []Speed{Slow, Normal, Fast}
 
+// speedSteps e speedNames são, para cada Speed, o passo em pixels e o nome.
+var (
+	speedSteps = [...]float64{Slow: 2.5, Normal: 4, Fast: 6}
+	speedNames = [...]string{Slow: "lento", Normal: "normal", Fast: "rápido"}
+)
+
 // step devolve quantos pixels um Gopher desta velocidade anda a cada passo.
+// Entra em pânico se s não for uma das velocidades de Speeds.
 func (s Speed) step() float64 {
-	switch s {
-	case Slow:
-		return 2.5
-	case Fast:
-		return 6
-	}
-	return 4
+	return speedSteps[s]
 }
 
 func (s Speed) String() string {
-	switch s {
-	case Slow:
-		return "lento"
-	case Fast:
-		return "rápido"
+	if s < 0 || int(s) >= len(speedNames) {
+		return fmt.Sprintf("Speed(%d)", int(s))
 	}
-	return "normal"
+	return speedNames[s]
 }
 
 // Palette é a paleta de cores dos Gophers: sete cores bem distintas entre si,
@@ -62,7 +61,7 @@ var Palette = []color.RGBA{
 // da paleta. Passando disso, a paleta é embaralhada de novo a cada rodada.
 //
 // A posição deles só deve ser sorteada, por Spawn, quando o tamanho da tela
-// for conhecido.
+// for conhecido. Colony já cuida disso.
 func NewGophers(n int) []*Gopher {
 	return newGophers(n, rand.Perm, rand.IntN)
 }

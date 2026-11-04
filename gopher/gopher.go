@@ -1,6 +1,7 @@
-// Package gopher implementa o Gopher do jogo: um personagem que anda sozinho,
+// Package gopher implementa os Gophers do jogo: personagens que andam sozinhos,
 // quase sempre em linha reta, fazendo curvas ocasionais e quicando nas bordas
-// da tela.
+// da tela e uns nos outros. Cada Gopher tem velocidade e cor próprias, e
+// Colony reúne vários deles na mesma tela.
 package gopher
 
 import (

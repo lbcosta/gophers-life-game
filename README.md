@@ -1,7 +1,8 @@
 # Gophers Life
 
-Jogo 2D em Go, feito com a [Ebitengine](https://ebitengine.org/). Um Gopher anda
-sozinho, em direções aleatórias, sobre um gramado.
+Jogo 2D em Go, feito com a [Ebitengine](https://ebitengine.org/). Cinco Gophers,
+cada um com cor e velocidade sorteadas, andam sozinhos sobre um gramado em
+direções aleatórias, quicando nas bordas da tela e uns nos outros.
 
 ## Como executar
 
@@ -23,5 +24,10 @@ go test ./...
 ## Estrutura
 
 - `main.go`: janela, loop do jogo e fundo de grama.
-- `gopher/`: o Gopher (movimento, desenho e testes).
+- `gopher/`: os Gophers.
+  - `gopher.go`: movimento, giro e nascimento de um Gopher.
+  - `interaction.go`: colisões entre Gophers e as reações a elas.
+  - `personality.go`: velocidades, paleta de cores e criação de Gophers sorteados.
+  - `colony.go`: vários Gophers na mesma tela.
+  - `draw.go` e `ellipse.go`: desenho.
 - `assets/grass.png`: textura de grama.

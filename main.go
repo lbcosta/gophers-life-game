@@ -12,7 +12,7 @@ import (
 	"gophers-life-game/gopher"
 )
 
-// grassBrightness escurece a grama para o Gopher se destacar.
+// grassBrightness escurece a grama para os Gophers se destacarem.
 // 1 é o brilho original da textura; valores menores deixam mais escuro.
 const grassBrightness = 0.6
 
@@ -26,14 +26,13 @@ const gopherCount = 5
 var grassPNG []byte
 
 type Game struct {
-	gophers []*gopher.Gopher
+	gophers *gopher.Colony
 
 	grass      *ebiten.Image // ladrilho da textura de grama
 	background *ebiten.Image // grama já ladrilhada e escurecida, do tamanho da tela
 
 	screen        image.Point // tamanho da tela, informado por Layout
 	screenChanged bool        // screen mudou e os Gophers ainda não foram avisados
-	spawned       bool        // os Gophers já foram espalhados pela tela
 }
 
 // loadGrass decodifica a textura de grama embutida.
@@ -87,23 +86,10 @@ func (g *Game) Update() error {
 	}
 
 	if g.screenChanged {
-		for _, gp := range g.gophers {
-			gp.Resize(float64(g.screen.X), float64(g.screen.Y))
-		}
+		g.gophers.Resize(float64(g.screen.X), float64(g.screen.Y))
 		g.screenChanged = false
 	}
-
-	// Na primeira vez em que o tamanho da tela é conhecido, espalha os Gophers.
-	if !g.spawned {
-		for i, gp := range g.gophers {
-			gp.Spawn(g.gophers[:i]...) // sem nascer em cima dos que já foram espalhados
-		}
-		g.spawned = true
-	}
-
-	for _, gp := range g.gophers {
-		gp.Update(g.gophers...)
-	}
+	g.gophers.Update()
 
 	return nil
 }
@@ -111,9 +97,7 @@ func (g *Game) Update() error {
 // Draw roda a cada frame: só desenha.
 func (g *Game) Draw(screen *ebiten.Image) {
 	g.drawBackground(screen)
-	for _, gp := range g.gophers {
-		gp.Draw(screen)
-	}
+	g.gophers.Draw(screen)
 }
 
 // Layout define a resolução lógica: acompanha o tamanho da tela. Só registra
@@ -135,7 +119,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := ebiten.RunGame(&Game{gophers: gopher.NewGophers(gopherCount), grass: grass}); err != nil {
+	if err := ebiten.RunGame(&Game{gophers: gopher.NewColony(gopherCount), grass: grass}); err != nil {
 		log.Fatal(err)
 	}
 }

@@ -512,26 +512,17 @@ func TestGophersKeepApart(t *testing.T) {
 	// pequena para se esbarrarem sempre. Eles podem se sobrepor um pouco por
 	// causa dos passos e de empurrões das paredes, mas nunca de verdade.
 	const w, h = 500, 400
-	r := rand.New(rand.NewPCG(5, 6))
-	var gophers []*Gopher
-	for i := range 5 {
-		g := newGopher(r.Float64, r.IntN)
-		g.stepSize = Speeds[i%len(Speeds)].step()
-		g.Resize(w, h)
-		g.Spawn(gophers...)
-		gophers = append(gophers, g)
-	}
+	c := newTestColony(5, 5, 6)
+	c.Resize(w, h)
 
 	minDist := math.Inf(1)
 	for tick := range 100_000 {
-		for _, g := range gophers {
-			g.Update(gophers...)
-			if !g.insideScreen() {
-				t.Fatalf("tick %d: hit box fora da tela, posição (%v, %v)", tick, g.x, g.y)
+		c.Update()
+		for i, a := range c.gophers {
+			if !a.insideScreen() {
+				t.Fatalf("tick %d: hit box fora da tela, posição (%v, %v)", tick, a.x, a.y)
 			}
-		}
-		for i, a := range gophers {
-			for _, b := range gophers[:i] {
+			for _, b := range c.gophers[:i] {
 				minDist = min(minDist, math.Hypot(a.x-b.x, a.y-b.y))
 			}
 		}
@@ -732,5 +723,98 @@ func TestNewGophersUseEverySpeed(t *testing.T) {
 	}
 	if len(seen) != len(Speeds) {
 		t.Errorf("%d velocidades diferentes em 100 Gophers, esperado %d", len(seen), len(Speeds))
+	}
+}
+
+func TestSpeedString(t *testing.T) {
+	tests := map[Speed]string{Slow: "lento", Normal: "normal", Fast: "rápido", Speed(7): "Speed(7)", Speed(-1): "Speed(-1)"}
+	for speed, want := range tests {
+		if got := speed.String(); got != want {
+			t.Errorf("Speed(%d).String() = %q, esperado %q", int(speed), got, want)
+		}
+	}
+}
+
+// newTestColony cria uma colônia de n Gophers com sorteios de semente fixa,
+// passando por todas as velocidades.
+func newTestColony(n int, seed1, seed2 uint64) *Colony {
+	r := rand.New(rand.NewPCG(seed1, seed2))
+	c := &Colony{}
+	for i := range n {
+		g := newGopher(r.Float64, r.IntN)
+		g.stepSize = Speeds[i%len(Speeds)].step()
+		c.gophers = append(c.gophers, g)
+	}
+	return c
+}
+
+func TestColonyDoesNothingBeforeResize(t *testing.T) {
+	c := newTestColony(3, 13, 14)
+
+	for range 2 * walkEveryTicks {
+		c.Update()
+	}
+
+	for i, g := range c.gophers {
+		if g.x != hitboxRadius || g.y != hitboxRadius || g.ticks != 0 {
+			t.Errorf("Gopher %d mudou antes do primeiro Resize: posição (%v, %v), ticks %d", i, g.x, g.y, g.ticks)
+		}
+	}
+}
+
+func TestColonySpawnsOnFirstResizeOnly(t *testing.T) {
+	c := newTestColony(5, 15, 16)
+
+	c.Resize(800, 600)
+
+	type pos struct{ x, y float64 }
+	spawned := make([]pos, len(c.gophers))
+	for i, g := range c.gophers {
+		if !g.insideScreen() {
+			t.Errorf("Gopher %d nasceu fora da tela, em (%v, %v)", i, g.x, g.y)
+		}
+		for j, o := range c.gophers[:i] {
+			if d := math.Hypot(g.x-o.x, g.y-o.y); d < collisionDistance {
+				t.Errorf("Gophers %d e %d nasceram sobrepostos, a %v um do outro", i, j, d)
+			}
+		}
+		spawned[i] = pos{g.x, g.y}
+	}
+
+	c.Resize(800, 600) // de novo: não deve espalhá-los outra vez
+
+	for i, g := range c.gophers {
+		if (pos{g.x, g.y}) != spawned[i] {
+			t.Errorf("Gopher %d foi espalhado de novo: de %v para (%v, %v)", i, spawned[i], g.x, g.y)
+		}
+	}
+}
+
+func TestHighlightsStayInsidePupilsAndTowardsTheLight(t *testing.T) {
+	if len(shinyCenters) == 0 {
+		t.Fatal("nenhuma parte com brilho")
+	}
+	for _, s := range shapes {
+		if !s.shiny {
+			continue
+		}
+		if s.rx != s.ry {
+			t.Fatalf("parte com brilho não é circular: rx = %v, ry = %v", s.rx, s.ry)
+		}
+		// O deslocamento é o mesmo em qualquer direção, então basta conferir uma vez.
+		if d := math.Hypot(float64(highlightOffset.x), float64(highlightOffset.y)); d+highlightRadius > float64(s.rx) {
+			t.Errorf("brilho passa da pupila: %v + %v > %v", d, highlightRadius, s.rx)
+		}
+	}
+
+	for facing := 0.0; facing < 360; facing += 15 {
+		sin, cos := math.Sincos(radians(facing - spriteHeading))
+		for i, h := range highlightCenters(facing) {
+			pupil := shinyCenters[i].rotate(float32(sin), float32(cos))
+			// A luz vem de cima e da esquerda, qualquer que seja a direção do Gopher.
+			if h.x >= pupil.x || h.y >= pupil.y {
+				t.Errorf("facing %v: brilho %d em %+v não está acima e à esquerda da pupila %+v", facing, i, h, pupil)
+			}
+		}
 	}
 }

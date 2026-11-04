@@ -1,6 +1,7 @@
 package gopher
 
 import (
+	"fmt"
 	"image/color"
 	"math"
 
@@ -30,6 +31,7 @@ type part struct {
 	angle    float64 // graus, sentido horário na tela (mesma convenção de heading)
 	fill     fill
 	mirrored bool // também desenha a cópia espelhada (cx e angle invertidos)
+	shiny    bool // recebe um brilho (ver highlightCenters); só para partes circulares
 }
 
 // fill é o papel de cor de uma parte. A cor de fato é resolvida ao desenhar, já
@@ -40,20 +42,19 @@ const (
 	fillBody fill = iota
 	fillEye
 	fillPupil
-	fillHighlight
 )
 
 // color devolve a cor do papel f para um Gopher de corpo body.
 func (f fill) color(body color.RGBA) color.Color {
 	switch f {
+	case fillBody:
+		return body
 	case fillEye:
 		return eyeColor
 	case fillPupil:
 		return pupilColor
-	case fillHighlight:
-		return highlightColor
 	}
-	return body
+	panic(fmt.Sprintf("gopher: papel de cor desconhecido: %d", f))
 }
 
 // parts descreve o Gopher, de trás para frente.
@@ -62,12 +63,9 @@ var parts = []part{
 	{cx: 0, cy: 0, rx: 1, ry: 1, angle: 0, fill: fillBody},                               // corpo
 	{cx: 0.46, cy: -0.9, rx: 0.33, ry: 0.2, angle: 17, fill: fillEye, mirrored: true},    // olhos
 	// Pupilas redondas e grandes (cerca de 45% do olho), na borda do olho e vazando
-	// cerca de 1px por ela, para dar o efeito de olhos esbugalhados.
-	{cx: 0.582, cy: -0.956, rx: 0.15, ry: 0.15, angle: 0, fill: fillPupil, mirrored: true},
-	// Brilhos nas pupilas. Não são espelhados: a luz vem sempre de cima e da
-	// esquerda, o oposto do lado da sombra.
-	{cx: -0.632, cy: -1.016, rx: 0.05, ry: 0.05, angle: 0, fill: fillHighlight},
-	{cx: 0.532, cy: -1.016, rx: 0.05, ry: 0.05, angle: 0, fill: fillHighlight},
+	// cerca de 1px por ela, para dar o efeito de olhos esbugalhados. Cada uma
+	// recebe um brilho, desenhado à parte (ver highlightCenters).
+	{cx: 0.582, cy: -0.956, rx: 0.15, ry: 0.15, angle: 0, fill: fillPupil, mirrored: true, shiny: true},
 	{cx: 0, cy: -0.97, rx: 0.08, ry: 0.06, angle: 0, fill: fillPupil}, // nariz
 }
 
@@ -116,23 +114,68 @@ const spriteCenter = spriteSize / 2
 // cima, que na convenção dos ângulos (0º à direita, sentido horário) é -90º.
 const spriteHeading = -90
 
-// renderSprite desenha o Gopher (sem a sombra, que não gira junto) com o corpo
-// na cor body.
+// Brilho das pupilas. A luz vem sempre de cima e da esquerda, o oposto do lado
+// da sombra, então o brilho não pode ir no sprite, que gira com o Gopher: ele é
+// desenhado a cada frame, sobre as pupilas já giradas, deslocado sempre para o
+// mesmo lado da tela. As medidas são em múltiplos do raio do corpo.
+const highlightRadius = 0.05
+
+var highlightOffset = point{x: -0.05, y: -0.06}
+
+// shinyCenters são os centros das partes com brilho, no sprite (apontando para
+// spriteHeading) e em relação ao centro do corpo.
+var shinyCenters = centersOfShiny(shapes)
+
+func centersOfShiny(ps []part) []point {
+	var out []point
+	for _, p := range ps {
+		if p.shiny {
+			out = append(out, point{p.cx, p.cy})
+		}
+	}
+	return out
+}
+
+// highlightCenters devolve o centro do brilho de cada pupila de um Gopher que
+// aponta para facing, em relação ao centro do corpo e em múltiplos do raio do
+// corpo. A pupila gira com o Gopher; o deslocamento do brilho, não.
+func highlightCenters(facing float64) []point {
+	sin, cos := math.Sincos(radians(facing - spriteHeading))
+	out := make([]point, len(shinyCenters))
+	for i, c := range shinyCenters {
+		p := c.rotate(float32(sin), float32(cos))
+		out[i] = point{p.x + highlightOffset.x, p.y + highlightOffset.y}
+	}
+	return out
+}
+
+// renderSprite desenha o Gopher (sem a sombra e o brilho, que não giram junto)
+// com o corpo na cor body.
 func renderSprite(body color.RGBA) *ebiten.Image {
 	img := ebiten.NewImage(spriteSize, spriteSize)
-	const c = spriteCenter // centro do corpo na imagem
-
 	for _, s := range shapes {
-		fillEllipse(img, c+s.cx*bodyRadius, c+s.cy*bodyRadius, s.rx*bodyRadius, s.ry*bodyRadius, s.angle, s.fill.color(body))
+		fillEllipse(img, spriteCenter+s.cx*bodyRadius, spriteCenter+s.cy*bodyRadius,
+			s.rx*bodyRadius, s.ry*bodyRadius, s.angle, s.fill.color(body))
 	}
 	return img
 }
 
-// Draw pinta o Gopher em screen, centrado na posição atual e apontando para
-// facing. A sombra fica sempre no mesmo lado, já que a luz não gira com ele.
+// Draw pinta o Gopher em screen: a sombra e, por cima, o próprio Gopher. Para
+// desenhar vários Gophers sem que a sombra de um cubra outro, use Colony.
 func (g *Gopher) Draw(screen *ebiten.Image) {
-	vector.FillCircle(screen, float32(g.x)+shadowOffsetX, float32(g.y)+shadowOffsetY, bodyRadius, shadowColor, true)
+	g.drawShadow(screen)
+	g.drawFigure(screen)
+}
 
+// drawShadow pinta a sombra do Gopher. Ela fica sempre no mesmo lado, já que a
+// luz não gira com ele.
+func (g *Gopher) drawShadow(screen *ebiten.Image) {
+	vector.FillCircle(screen, float32(g.x)+shadowOffsetX, float32(g.y)+shadowOffsetY, bodyRadius, shadowColor, true)
+}
+
+// drawFigure pinta o Gopher centrado na posição atual e apontando para facing,
+// com o brilho nas pupilas.
+func (g *Gopher) drawFigure(screen *ebiten.Image) {
 	// O sprite é desenhado na primeira vez em que é preciso, já na cor do Gopher.
 	if g.sprite == nil {
 		g.sprite = renderSprite(g.body)
@@ -143,4 +186,9 @@ func (g *Gopher) Draw(screen *ebiten.Image) {
 	op.GeoM.Rotate(radians(g.facing - spriteHeading))
 	op.GeoM.Translate(g.x, g.y)
 	screen.DrawImage(g.sprite, op)
+
+	for _, h := range highlightCenters(g.facing) {
+		vector.FillCircle(screen, float32(g.x)+h.x*bodyRadius, float32(g.y)+h.y*bodyRadius,
+			highlightRadius*bodyRadius, highlightColor, true)
+	}
 }
