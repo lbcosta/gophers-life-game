@@ -57,6 +57,7 @@ type Gopher struct {
 
 	stepSize float64    // pixels por passo; vem da Speed
 	body     color.RGBA // cor do corpo e das orelhas
+	name     string     // sorteado de Names no nascimento
 
 	heading float64 // direção do movimento, em graus [0, 360)
 	facing  float64 // direção para a qual o desenho aponta; gira até alcançar heading
@@ -68,13 +69,15 @@ type Gopher struct {
 }
 
 // NewGopher cria um Gopher bebê de velocidade speed e corpo da cor body, no
-// canto superior esquerdo da tela, olhando para uma direção aleatória. A idade
+// canto superior esquerdo da tela, olhando para uma direção aleatória, com um
+// nome sorteado de Names. A idade
 // em que ele passa para cada fase da vida é sorteada (ver newMaturity). O
 // tamanho da tela é informado depois, por Resize.
 func NewGopher(speed Speed, body color.RGBA) *Gopher {
 	g := newGopher(rand.Float64, rand.IntN)
 	g.maturity = newMaturity(g.intn)
 	g.age = 0
+	g.name = Names[g.intn(len(Names))]
 	g.stepSize = speed.step()
 	g.body = body
 	return g
@@ -100,6 +103,11 @@ func newGopher(chance func() float64, intn func(n int) int) *Gopher {
 	}
 	g.age = g.maturity[len(g.maturity)-1]
 	return g
+}
+
+// Name devolve o nome do Gopher.
+func (g *Gopher) Name() string {
+	return g.name
 }
 
 // Alive informa se o Gopher está vivo, isto é, se ainda tem saciedade.

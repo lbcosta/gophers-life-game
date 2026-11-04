@@ -1,6 +1,10 @@
 package gopher
 
-import "github.com/hajimehoshi/ebiten/v2"
+import (
+	"math"
+
+	"github.com/hajimehoshi/ebiten/v2"
+)
 
 // Colony é um grupo de Gophers que dividem a mesma tela e colidem entre si.
 //
@@ -10,12 +14,18 @@ import "github.com/hajimehoshi/ebiten/v2"
 // Os que morrem de fome somem dela.
 type Colony struct {
 	gophers []*Gopher
-	spawned bool // os Gophers já foram espalhados pela tela
+	spawned bool    // os Gophers já foram espalhados pela tela
+	hovered *Gopher // o Gopher sob o mouse, ou nil; seu nome é mostrado por Draw
 }
 
+// MaxGophers é o maior número de Gophers que uma colônia comporta.
+const MaxGophers = 1000
+
 // NewColony cria uma colônia de n Gophers, cada um com velocidade e cor
-// sorteadas (ver NewGophers).
+// sorteadas (ver NewGophers). Se n passar de MaxGophers, a colônia é criada com
+// MaxGophers; se for negativo, sem nenhum Gopher.
 func NewColony(n int) *Colony {
+	n = min(max(n, 0), MaxGophers)
 	return &Colony{gophers: NewGophers(n)}
 }
 
@@ -61,6 +71,28 @@ func (c *Colony) Update(forage Forager) {
 	c.gophers = alive
 }
 
+// At devolve o Gopher vivo que está sob o ponto (x, y), isto é, com o ponto
+// dentro da hit box, ou nil se não houver nenhum. Se houver vários, devolve o
+// que aparece por cima dos outros.
+func (c *Colony) At(x, y float64) *Gopher {
+	if !c.spawned {
+		return nil
+	}
+	for i := len(c.gophers) - 1; i >= 0; i-- {
+		g := c.gophers[i]
+		if g.Alive() && math.Hypot(g.x-x, g.y-y) <= g.hitbox() {
+			return g
+		}
+	}
+	return nil
+}
+
+// Hover informa onde está o mouse. O Gopher que estiver embaixo dele passa a ter
+// o nome mostrado por Draw, até o mouse sair de cima.
+func (c *Colony) Hover(x, y float64) {
+	c.hovered = c.At(x, y)
+}
+
 // Gophers devolve os Gophers vivos da colônia.
 func (c *Colony) Gophers() []*Gopher {
 	return c.gophers
@@ -79,5 +111,9 @@ func (c *Colony) Draw(screen *ebiten.Image) {
 	}
 	for _, g := range c.gophers {
 		g.drawFigure(screen)
+	}
+	// O nome vem por último, para nunca ficar atrás de outro Gopher.
+	if c.hovered != nil && c.hovered.Alive() {
+		c.hovered.drawName(screen)
 	}
 }

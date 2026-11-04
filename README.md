@@ -14,7 +14,8 @@ alfafa). Cada planta passa por três fases: semente, crescendo e pronta. Passar
 por cima de uma semente não faz nada, passar por uma planta crescendo a desfaz,
 e passar por uma pronta é comê-la: batata, cenoura e rabanete dão +2 de
 saciedade, e capim, trevo e alfafa dão +1. Todo Gopher nasce com saciedade 10,
-perde 1 a cada 100 passos e morre (some) ao chegar a zero.
+perde 1 a cada 100 passos e morre (some) ao chegar a zero. Cada Gopher também
+nasce com um nome sorteado (nunca repetido), que aparece quando o mouse passa por cima dele.
 
 ## Como executar
 
@@ -41,7 +42,8 @@ go test ./...
   - `life.go`: fases da vida, maturidade sorteada e crescimento do corpo e da hit box.
   - `interaction.go`: colisões entre Gophers e as reações a elas.
   - `personality.go`: velocidades, paleta de cores e criação de Gophers sorteados.
-  - `colony.go`: vários Gophers na mesma tela.
+  - `colony.go`: vários Gophers na mesma tela e o hover do mouse.
+  - `names.go` e `names.txt`: os nomes que os Gophers podem receber, e de onde vieram.
   - `draw.go` e `ellipse.go`: desenho.
 - `world/`: os objetos do mundo.
   - `plant.go`: tipos de alimento, fases de crescimento e maturidade sorteada.

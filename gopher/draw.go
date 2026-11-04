@@ -1,12 +1,15 @@
 package gopher
 
 import (
+	"bytes"
 	"fmt"
 	"image/color"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"golang.org/x/image/font/gofont/goregular"
 )
 
 // Cores fixas do Gopher. A cor do corpo e das orelhas é de cada Gopher (ver Palette).
@@ -252,4 +255,54 @@ func (g *Gopher) drawFigure(screen *ebiten.Image) {
 		vector.FillCircle(screen, float32(g.x)+h.x*size, float32(g.y)+h.y*size,
 			highlightRadius*size, highlightColor, true)
 	}
+}
+
+// Aparência do nome mostrado ao passar o mouse sobre um Gopher.
+const (
+	nameFontSize = 16 // altura do texto, em pixels
+	namePadding  = 6  // folga entre o texto e a borda da etiqueta
+	nameGap      = 6  // distância entre a etiqueta e a hit box do Gopher
+)
+
+var (
+	nameTextColor = color.RGBA{255, 255, 255, 255}
+	nameBackColor = color.RGBA{0, 0, 0, 170}
+)
+
+// nameFace é a fonte do nome, criada na primeira vez em que é preciso.
+var nameFace *text.GoTextFace
+
+func nameFont() *text.GoTextFace {
+	if nameFace == nil {
+		source, err := text.NewGoTextFaceSource(bytes.NewReader(goregular.TTF))
+		if err != nil {
+			panic(err) // a fonte está embutida no programa: não deve falhar
+		}
+		nameFace = &text.GoTextFace{Source: source, Size: nameFontSize}
+	}
+	return nameFace
+}
+
+// drawName escreve o nome do Gopher numa etiqueta logo acima dele, centrada nele
+// e sempre inteira dentro da tela. Se não couber acima, vai para baixo.
+func (g *Gopher) drawName(screen *ebiten.Image) {
+	face := nameFont()
+	w, h := text.Measure(g.name, face, 0)
+	boxW, boxH := float32(w)+2*namePadding, float32(h)+2*namePadding
+
+	bounds := screen.Bounds()
+	x := float32(g.x) - boxW/2
+	y := float32(g.y-g.hitbox()) - nameGap - boxH
+	if y < 0 {
+		y = float32(g.y+g.hitbox()) + nameGap
+	}
+	x = min(max(x, 0), float32(bounds.Dx())-boxW)
+	y = min(max(y, 0), float32(bounds.Dy())-boxH)
+
+	vector.FillRect(screen, x, y, boxW, boxH, nameBackColor, true)
+
+	op := &text.DrawOptions{}
+	op.GeoM.Translate(float64(x+namePadding), float64(y+namePadding))
+	op.ColorScale.ScaleWithColor(nameTextColor)
+	text.Draw(screen, g.name, face, op)
 }

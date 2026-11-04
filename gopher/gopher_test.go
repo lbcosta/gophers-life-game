@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"math"
 	"math/rand/v2"
+	"strings"
 	"testing"
 )
 
@@ -1063,5 +1064,163 @@ func TestColonyRemovesStarvedGophersAndFeedsTheRest(t *testing.T) {
 	}
 	if fed.satiety < 3 {
 		t.Errorf("o que comeu ficou com saciedade %d, esperado pelo menos 3 (2 - 1 + 2)", fed.satiety)
+	}
+}
+
+func TestParseNamesSkipsCommentsAndBlankLines(t *testing.T) {
+	got := parseNames("# comentário\n\nAna\n  Bia  \n#Outro\nCaio\n")
+	want := []string{"Ana", "Bia", "Caio"}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("parseNames = %v, esperado %v", got, want)
+	}
+}
+
+func TestNamesFileHasNoRepeatsAndNoneOfTheHundredMostPopular(t *testing.T) {
+	// Os 100 nomes mais populares do Brasil segundo os censos do IBGE, sem acentos.
+	popular := "Maria Jose Ana Joao Antonio Francisco Carlos Paulo Pedro Lucas Luiz Marcos Luis Gabriel " +
+		"Rafael Francisca Daniel Marcelo Bruno Eduardo Felipe Raimundo Rodrigo Antonia Manoel " +
+		"Mateus Andre Adriana Juliana Fernando Marcia Fabio Leonardo Gustavo Fernanda Patricia " +
+		"Guilherme Aline Leandro Tiago Sandra Anderson Camila Ricardo Marcio Amanda Jorge Bruna " +
+		"Sebastiao Jessica Alexandre Roberto Leticia Julia Edson Luciana Diego Vitor Vanessa Sergio " +
+		"Mariana Gabriela Vera Vitoria Larissa Claudia Beatriz Luana Rita Sonia Claudio Matheus " +
+		"Renata Thiago Eliane Josefa Simone Geraldo Adriano Luciano Julio Natalia Renato Cristiane " +
+		"Carla Debora Alex Rosangela Jaqueline Rosa Vinicius Daniela Aparecida Marlene Terezinha " +
+		"Raimunda Rogerio Samuel Andreia Fabiana"
+	banned := map[string]bool{}
+	for _, n := range strings.Fields(popular) {
+		banned[n] = true
+	}
+	if len(banned) != 100 {
+		t.Fatalf("%d nomes populares no teste, esperado 100", len(banned))
+	}
+
+	if len(Names) == 0 {
+		t.Fatal("nenhum nome em names.txt")
+	}
+	seen := map[string]bool{}
+	for _, n := range Names {
+		if banned[n] {
+			t.Errorf("%q está entre os 100 mais populares e devia ter sido excluído", n)
+		}
+		if seen[n] {
+			t.Errorf("%q repetido em names.txt", n)
+		}
+		seen[n] = true
+	}
+}
+
+func TestNewGopherDrawsNameFromNames(t *testing.T) {
+	inNames := map[string]bool{}
+	for _, n := range Names {
+		inNames[n] = true
+	}
+	different := map[string]bool{}
+	for range 50 {
+		g := NewGopher(Normal, Palette[0])
+		if !inNames[g.Name()] {
+			t.Fatalf("nome %q não está em Names", g.Name())
+		}
+		different[g.Name()] = true
+	}
+	if len(different) < 10 {
+		t.Errorf("só %d nomes diferentes em 50 Gophers", len(different))
+	}
+}
+
+func TestAtFindsTheGopherUnderThePoint(t *testing.T) {
+	c := newTestColony(2, 41, 42)
+	if c.At(0, 0) != nil {
+		t.Error("At devolveu um Gopher antes do primeiro Resize")
+	}
+	c.Resize(800, 600)
+	a, b := c.gophers[0], c.gophers[1]
+	a.x, a.y, b.x, b.y = 200, 200, 500, 300
+
+	if got := c.At(a.x+hitboxRadius-1, a.y); got != a {
+		t.Errorf("At dentro da hit box de a devolveu %v", got)
+	}
+	if got := c.At(b.x, b.y); got != b {
+		t.Errorf("At no centro de b devolveu %v", got)
+	}
+	if got := c.At(a.x+hitboxRadius+1, a.y); got != nil {
+		t.Errorf("At fora das hit boxes devolveu %v", got)
+	}
+
+	// Sobrepostos: vence o que é desenhado por cima, o último.
+	b.x, b.y = a.x+10, a.y
+	if got := c.At(a.x+5, a.y); got != b {
+		t.Errorf("At sobreposto devolveu %v, esperado o de cima (b)", got)
+	}
+
+	// Morto não é encontrado.
+	b.satiety = 0
+	if got := c.At(a.x+5, a.y); got != a {
+		t.Errorf("At devolveu %v, esperado a (b está morto)", got)
+	}
+}
+
+func TestHoverTracksTheGopherUnderTheMouse(t *testing.T) {
+	c := newTestColony(2, 43, 44)
+	c.Resize(800, 600)
+	a := c.gophers[0]
+	a.x, a.y = 300, 300
+
+	c.Hover(300, 300)
+	if c.hovered != a {
+		t.Errorf("hovered = %v, esperado a", c.hovered)
+	}
+	c.Hover(0, 0)
+	if c.hovered != nil {
+		t.Errorf("hovered = %v depois de o mouse sair, esperado nil", c.hovered)
+	}
+}
+
+func TestNewGophersHaveDistinctNames(t *testing.T) {
+	for range 20 {
+		seen := map[string]bool{}
+		for _, g := range NewGophers(50) {
+			if g.Name() == "" || seen[g.Name()] {
+				t.Fatalf("nome %q vazio ou repetido", g.Name())
+			}
+			seen[g.Name()] = true
+		}
+	}
+}
+
+func TestAssignNamesUsesThePermutationAndReshufflesWhenNamesRunOut(t *testing.T) {
+	var asked []int
+	perm := func(n int) []int {
+		asked = append(asked, n)
+		out := make([]int, n)
+		for i := range out {
+			out[i] = n - 1 - i // do último nome para o primeiro
+		}
+		return out
+	}
+
+	gophers := make([]*Gopher, len(Names)+2)
+	for i := range gophers {
+		gophers[i] = newGopher(rand.Float64, rand.IntN)
+	}
+	assignNames(gophers, perm)
+
+	if gophers[0].name != Names[len(Names)-1] || gophers[1].name != Names[len(Names)-2] {
+		t.Errorf("nomes %q e %q, esperado os dois últimos de Names, em ordem", gophers[0].name, gophers[1].name)
+	}
+	if len(asked) != 2 || asked[0] != len(Names) || asked[1] != len(Names) {
+		t.Errorf("perm chamada com %v, esperado duas vezes com %d", asked, len(Names))
+	}
+	if last := gophers[len(Names)]; last.name != Names[len(Names)-1] {
+		t.Errorf("depois de esgotar os nomes, o próximo foi %q, esperado recomeçar a permutação", last.name)
+	}
+}
+
+func TestNewColonyCapsTheNumberOfGophers(t *testing.T) {
+	for _, c := range []struct{ n, want int }{
+		{-3, 0}, {0, 0}, {5, 5}, {MaxGophers, MaxGophers}, {MaxGophers + 1, MaxGophers}, {5000, MaxGophers},
+	} {
+		if got := len(NewColony(c.n).Gophers()); got != c.want {
+			t.Errorf("NewColony(%d) tem %d Gophers, esperado %d", c.n, got, c.want)
+		}
 	}
 }

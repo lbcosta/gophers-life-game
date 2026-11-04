@@ -113,6 +113,9 @@ func (g *Game) Update() error {
 	g.world.Update()
 	g.gophers.Update(g.world.Forage)
 
+	mx, my := ebiten.CursorPosition()
+	g.gophers.Hover(float64(mx), float64(my))
+
 	return nil
 }
 

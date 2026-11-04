@@ -60,10 +60,28 @@ var Palette = []color.RGBA{
 // ordem, então os Gophers têm cores diferentes enquanto n não passar do tamanho
 // da paleta. Passando disso, a paleta é embaralhada de novo a cada rodada.
 //
+// Os nomes são sorteados de Names sem repetição: dois Gophers nunca têm o
+// mesmo nome (ver assignNames).
+//
 // A posição deles só deve ser sorteada, por Spawn, quando o tamanho da tela
 // for conhecido. Colony já cuida disso.
 func NewGophers(n int) []*Gopher {
-	return newGophers(n, rand.Perm, rand.IntN)
+	gophers := newGophers(n, rand.Perm, rand.IntN)
+	assignNames(gophers, rand.Perm)
+	return gophers
+}
+
+// assignNames dá a cada Gopher um nome diferente de Names, na ordem de uma
+// permutação sorteada. perm devolve uma permutação de [0, n). Só se houver mais
+// Gophers que nomes a permutação recomeça, e então os nomes se repetem.
+func assignNames(gophers []*Gopher, perm func(n int) []int) {
+	var order []int
+	for i, g := range gophers {
+		if i%len(Names) == 0 {
+			order = perm(len(Names))
+		}
+		g.name = Names[order[i%len(Names)]]
+	}
 }
 
 // newGophers é NewGophers com as fontes de sorteio informadas, para os testes.
