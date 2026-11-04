@@ -80,25 +80,33 @@ func reach(ps []part) float32 {
 // spriteSize é o lado, em pixels, da imagem do Gopher: a hit box inteira.
 const spriteSize = int(2 * hitboxRadius)
 
-// sprite é a imagem do Gopher, desenhada uma única vez (na primeira chamada) e
-// reaproveitada por todos os Gophers e em todos os frames. A sombra cabe na hit
-// box, então também faz parte da imagem.
+// spriteHeading é a direção para a qual o sprite aponta ao ser desenhado: para
+// cima, que na convenção dos ângulos (0º à direita, sentido horário) é -90º.
+const spriteHeading = -90
+
+// sprite é a imagem do Gopher (sem a sombra, que não gira junto), desenhada uma
+// única vez, na primeira chamada, e reaproveitada por todos os Gophers e em
+// todos os frames.
 var sprite = sync.OnceValue(renderSprite)
 
 func renderSprite() *ebiten.Image {
 	img := ebiten.NewImage(spriteSize, spriteSize)
 	c := hitboxRadius // centro do corpo na imagem
 
-	vector.FillCircle(img, c+shadowOffsetX, c+shadowOffsetY, bodyRadius, shadowColor, true)
 	for _, s := range shapes {
 		fillEllipse(img, c+s.cx*bodyRadius, c+s.cy*bodyRadius, s.rx*bodyRadius, s.ry*bodyRadius, s.angle, s.color)
 	}
 	return img
 }
 
-// Draw pinta o Gopher em screen, centrado na posição atual.
+// Draw pinta o Gopher em screen, centrado na posição atual e apontando para
+// facing. A sombra fica sempre no mesmo lado, já que a luz não gira com ele.
 func (g *Gopher) Draw(screen *ebiten.Image) {
-	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Translate(float64(g.x-hitboxRadius), float64(g.y-hitboxRadius))
+	vector.FillCircle(screen, g.x+shadowOffsetX, g.y+shadowOffsetY, bodyRadius, shadowColor, true)
+
+	op := &ebiten.DrawImageOptions{Filter: ebiten.FilterLinear}
+	op.GeoM.Translate(-float64(hitboxRadius), -float64(hitboxRadius)) // gira em torno do centro
+	op.GeoM.Rotate((g.facing - spriteHeading) * math.Pi / 180)
+	op.GeoM.Translate(float64(g.x), float64(g.y))
 	screen.DrawImage(sprite(), op)
 }
