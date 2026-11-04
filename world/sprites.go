@@ -48,7 +48,8 @@ func LoadSprites(fsys fs.FS) (*Sprites, error) {
 
 // Prerender reduz cada sprite, uma vez, ao tamanho com que aparece na tela, para
 // que o Draw só copie imagens prontas. Deve ser chamado com o jogo já rodando;
-// chamar de novo não tem efeito.
+// chamar de novo não tem efeito. Depois dele, as imagens no tamanho original não
+// são mais necessárias e são liberadas.
 func (s *Sprites) Prerender() {
 	if s.rendered != nil {
 		return
@@ -61,8 +62,10 @@ func (s *Sprites) Prerender() {
 		scale := float64(spriteSize) / float64(src.Bounds().Dx())
 		op.GeoM.Scale(scale, scale)
 		dst.DrawImage(src, op)
+		src.Deallocate() // libera já a memória de vídeo, sem esperar o coletor de lixo
 		s.rendered[name] = dst
 	}
+	s.decoded = nil
 }
 
 // image devolve o sprite que representa p na fase em que está.

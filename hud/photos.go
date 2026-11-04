@@ -50,7 +50,8 @@ func LoadPhotos(fsys fs.FS) (*Photos, error) {
 }
 
 // Prerender reduz cada foto, uma vez, ao tamanho do espaço dela no painel. Deve
-// ser chamado com o jogo já rodando; chamar de novo não tem efeito.
+// ser chamado com o jogo já rodando; chamar de novo não tem efeito. Depois dele,
+// as fotos no tamanho original não são mais necessárias e são liberadas.
 func (p *Photos) Prerender() {
 	if p.rendered != nil {
 		return
@@ -63,8 +64,10 @@ func (p *Photos) Prerender() {
 		scale := float64(photoSize) / float64(src.Bounds().Dx())
 		op.GeoM.Scale(scale, scale)
 		dst.DrawImage(src, op)
+		src.Deallocate() // libera já a memória de vídeo, sem esperar o coletor de lixo
 		p.rendered[name] = dst
 	}
+	p.decoded = nil
 }
 
 // image devolve a foto name pronta para desenhar, ou nil se não houver.

@@ -41,9 +41,13 @@ func PanelContains(x, y, screenWidth int) bool {
 	return x >= left && x < left+panelWidth && y >= panelMargin && y < panelMargin+panelHeight
 }
 
-var faceSource *text.GoTextFaceSource
+var (
+	faceSource *text.GoTextFaceSource
+	faces      = map[float64]*text.GoTextFace{} // uma por tamanho, criadas uma única vez
+)
 
-// face devolve a fonte no tamanho size, criando a fonte-base na primeira vez.
+// face devolve a fonte no tamanho size, criando-a (e a fonte-base) na primeira
+// vez em que é pedida, para não criar uma nova a cada texto de cada frame.
 func face(size float64) *text.GoTextFace {
 	if faceSource == nil {
 		src, err := text.NewGoTextFaceSource(bytes.NewReader(goregular.TTF))
@@ -52,7 +56,10 @@ func face(size float64) *text.GoTextFace {
 		}
 		faceSource = src
 	}
-	return &text.GoTextFace{Source: faceSource, Size: size}
+	if faces[size] == nil {
+		faces[size] = &text.GoTextFace{Source: faceSource, Size: size}
+	}
+	return faces[size]
 }
 
 func drawText(screen *ebiten.Image, s string, size, x, y float64, clr color.Color) {
@@ -69,14 +76,18 @@ func DrawProfile(screen *ebiten.Image, p gopher.Profile, photos *Photos) {
 	left := float32(screenW - panelMargin - panelWidth)
 	top := float32(panelMargin)
 
-	vector.FillRect(screen, left, top, panelWidth, panelHeight, panelBack, true)
-	vector.StrokeRect(screen, left, top, panelWidth, panelHeight, 1, panelBorder, true)
+	// Os retângulos ficam em pixels inteiros e não precisam de suavização. Sem
+	// ela, vector os desenha como imagens comuns, que a Ebitengine junta numa só
+	// chamada à placa de vídeo; com ela, cada grupo de desenhos vetoriais
+	// interrompido por um DrawImage custa várias passadas por uma imagem auxiliar.
+	vector.FillRect(screen, left, top, panelWidth, panelHeight, panelBack, false)
+	vector.StrokeRect(screen, left, top, panelWidth, panelHeight, 1, panelBorder, false)
 
 	x := float64(left) + panelPadding
 	y := float64(top) + panelPadding
 
 	// Foto de perfil, sobre um fundo claro.
-	vector.FillRect(screen, float32(x), float32(y), photoSize, photoSize, photoBack, true)
+	vector.FillRect(screen, float32(x), float32(y), photoSize, photoSize, photoBack, false)
 	if photo := photos.image(p.Photo); photo != nil {
 		op := &ebiten.DrawImageOptions{}
 		op.GeoM.Translate(x, y)

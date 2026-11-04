@@ -816,8 +816,9 @@ func TestHighlightsStayInsidePupilsAndTowardsTheLight(t *testing.T) {
 
 	for facing := 0.0; facing < 360; facing += 15 {
 		sin, cos := math.Sincos(radians(facing - spriteHeading))
-		for i, h := range highlightCenters(facing) {
-			pupil := shinyCenters[i].rotate(float32(sin), float32(cos))
+		for i, c := range shinyCenters {
+			h := highlightCenter(c, facing)
+			pupil := c.rotate(float32(sin), float32(cos))
 			// A luz vem de cima e da esquerda, qualquer que seja a direção do Gopher.
 			if h.x >= pupil.x || h.y >= pupil.y {
 				t.Errorf("facing %v: brilho %d em %+v não está acima e à esquerda da pupila %+v", facing, i, h, pupil)
