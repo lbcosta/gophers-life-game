@@ -2,12 +2,17 @@ package gopher
 
 import (
 	"fmt"
+	"image/color"
 	"math"
 	"math/rand/v2"
 	"testing"
 )
 
 const eps = 1e-4
+
+// step é o passo de um Gopher de velocidade Normal, que é a dos Gophers criados
+// por newGopher.
+var step = Normal.step()
 
 // newTestGopher cria um Gopher no meio de uma tela de width por height, que
 // nunca gira por conta própria (chance sempre alta) e olha para heading.
@@ -376,5 +381,356 @@ func TestSpawnDesynchronizesSteps(t *testing.T) {
 
 	if a, b := stepTick(0), stepTick(3); a == b || a < 0 || b < 0 {
 		t.Errorf("fases diferentes deveriam dar o passo em ticks diferentes, mas foram %d e %d", a, b)
+	}
+}
+
+// twoGophers cria dois Gophers que nunca giram por conta própria, numa tela
+// grande: a em (ax, ay) olhando para headingA, e b em (bx, by) parado no lugar
+// em que o teste o deixa.
+func twoGophers(ax, ay, headingA, bx, by float64) (a, b *Gopher) {
+	a = newTestGopher(1000, 1000, headingA)
+	a.x, a.y = ax, ay
+	b = newTestGopher(1000, 1000, 0)
+	b.x, b.y = bx, by
+	return a, b
+}
+
+func TestCollisionBouncesLikeWall(t *testing.T) {
+	// b está 60px à direita de a, que anda para a direita: as hit boxes (64px)
+	// passariam a se sobrepor ainda mais, então a quica de volta para a esquerda.
+	a, b := twoGophers(400, 500, 0, 460, 500)
+
+	a.move(a, b)
+
+	if !near(a.heading, 180) {
+		t.Errorf("heading = %v, esperado 180", a.heading)
+	}
+	if !near(a.x, 400-step) || !near(a.y, 500) {
+		t.Errorf("posição (%v, %v), esperado (%v, 500)", a.x, a.y, 400-step)
+	}
+	if b.x != 460 || b.y != 500 {
+		t.Errorf("b foi para (%v, %v), mas só a reage", b.x, b.y)
+	}
+}
+
+func TestCollisionReflectsAroundTheLineBetweenCenters(t *testing.T) {
+	// b está em 45º de a (para baixo e para a direita) e a anda para a direita:
+	// refletir em torno da normal (a -> b invertida) manda a para cima.
+	d := 60 / math.Sqrt2
+	a, b := twoGophers(400, 500, 0, 400+d, 500+d)
+	before := math.Hypot(a.x-b.x, a.y-b.y)
+
+	a.move(a, b)
+
+	if !near(a.heading, 270) {
+		t.Errorf("heading = %v, esperado 270 (para cima)", a.heading)
+	}
+	if after := math.Hypot(a.x-b.x, a.y-b.y); after <= before {
+		t.Errorf("a deveria se afastar de b, mas a distância foi de %v para %v", before, after)
+	}
+	if moved := math.Hypot(a.x-400, a.y-500); !near(moved, step) {
+		t.Errorf("a andou %v, esperado %v (a velocidade se conserva)", moved, step)
+	}
+}
+
+func TestNoCollisionWhenMovingAway(t *testing.T) {
+	// a já encosta em b, mas anda para o lado oposto: pode seguir.
+	a, b := twoGophers(400, 500, 180, 460, 500)
+
+	a.move(a, b)
+
+	if a.heading != 180 {
+		t.Errorf("heading mudou para %v sem colisão", a.heading)
+	}
+	if !near(a.x, 400-step) {
+		t.Errorf("x = %v, esperado %v", a.x, 400-step)
+	}
+}
+
+func TestNoCollisionWhenFarApart(t *testing.T) {
+	// 100px de distância: depois do passo ainda sobram mais de 64px.
+	a, b := twoGophers(400, 500, 0, 500, 500)
+
+	a.move(a, b)
+
+	if a.heading != 0 || !near(a.x, 400+step) {
+		t.Errorf("heading = %v, x = %v: a deveria seguir em frente", a.heading, a.x)
+	}
+}
+
+func TestGopherIgnoresItselfAsOther(t *testing.T) {
+	a := newTestGopher(1000, 1000, 0)
+	x0 := a.x
+
+	a.move(a) // o próprio Gopher na lista, como o Game faz
+
+	if a.heading != 0 || !near(a.x, x0+step) {
+		t.Errorf("heading = %v, x = %v: a deveria andar sem reagir a si mesmo", a.heading, a.x)
+	}
+}
+
+func TestOverlappingGophersCanSeparate(t *testing.T) {
+	// Sobrepostos (distância 10), a anda para longe de b: não é colisão.
+	a, b := twoGophers(400, 500, 180, 410, 500)
+
+	a.move(a, b)
+
+	if a.heading != 180 || !near(a.x, 400-step) {
+		t.Errorf("heading = %v, x = %v: a deveria poder se afastar", a.heading, a.x)
+	}
+}
+
+func TestCoincidentCentersDoNotCollide(t *testing.T) {
+	// Sem direção de "parede" a considerar, o passo é livre (e não gera NaN).
+	a, b := twoGophers(400, 500, 0, 400, 500)
+
+	a.move(a, b)
+
+	if math.IsNaN(a.x) || math.IsNaN(a.y) || !near(a.x, 400+step) {
+		t.Errorf("posição (%v, %v), esperado (%v, 500)", a.x, a.y, 400+step)
+	}
+}
+
+func TestInteractDrawsAmongReactions(t *testing.T) {
+	a, b := twoGophers(400, 500, 0, 460, 500)
+	a.intn = func(n int) int {
+		if n != len(reactions) {
+			t.Errorf("intn(%d): esperado sorteio entre as %d reações", n, len(reactions))
+		}
+		return 0
+	}
+
+	a.move(a, b)
+
+	if !near(a.heading, 180) {
+		t.Errorf("heading = %v, esperado 180 (reação asWall)", a.heading)
+	}
+}
+
+func TestGophersKeepApart(t *testing.T) {
+	// Vários Gophers, de todas as velocidades, andando muito tempo numa tela
+	// pequena para se esbarrarem sempre. Eles podem se sobrepor um pouco por
+	// causa dos passos e de empurrões das paredes, mas nunca de verdade.
+	const w, h = 500, 400
+	r := rand.New(rand.NewPCG(5, 6))
+	var gophers []*Gopher
+	for i := range 5 {
+		g := newGopher(r.Float64, r.IntN)
+		g.stepSize = Speeds[i%len(Speeds)].step()
+		g.Resize(w, h)
+		g.Spawn(gophers...)
+		gophers = append(gophers, g)
+	}
+
+	minDist := math.Inf(1)
+	for tick := range 100_000 {
+		for _, g := range gophers {
+			g.Update(gophers...)
+			if !g.insideScreen() {
+				t.Fatalf("tick %d: hit box fora da tela, posição (%v, %v)", tick, g.x, g.y)
+			}
+		}
+		for i, a := range gophers {
+			for _, b := range gophers[:i] {
+				minDist = min(minDist, math.Hypot(a.x-b.x, a.y-b.y))
+			}
+		}
+	}
+
+	if limit := collisionDistance - 2*Fast.step(); minDist < limit {
+		t.Errorf("menor distância entre dois Gophers: %v, esperado pelo menos %v", minDist, limit)
+	}
+	t.Logf("menor distância entre dois Gophers: %.1f (hit boxes se tocam em %v)", minDist, collisionDistance)
+}
+
+func TestSpawnAvoidsOverlappingOthers(t *testing.T) {
+	r := rand.New(rand.NewPCG(7, 8))
+	var gophers []*Gopher
+	for i := range 5 {
+		g := newGopher(r.Float64, r.IntN)
+		g.Resize(800, 600)
+		g.Spawn(gophers...)
+		for _, o := range gophers {
+			if d := math.Hypot(g.x-o.x, g.y-o.y); d < collisionDistance {
+				t.Fatalf("Gopher %d nasceu a %v de outro, sobreposto", i, d)
+			}
+		}
+		gophers = append(gophers, g)
+	}
+}
+
+func TestSpawnGivesUpWhenThereIsNoRoom(t *testing.T) {
+	// Tela que só comporta um Gopher: o segundo nasce sobreposto, mas dentro dela.
+	r := rand.New(rand.NewPCG(9, 10))
+	a := newGopher(r.Float64, r.IntN)
+	a.Resize(100, 100)
+	a.Spawn()
+	b := newGopher(r.Float64, r.IntN)
+	b.Resize(100, 100)
+
+	b.Spawn(a)
+
+	if !b.insideScreen() {
+		t.Errorf("hit box fora da tela, posição (%v, %v)", b.x, b.y)
+	}
+}
+
+func TestSpeedsAreDistinctAndOrdered(t *testing.T) {
+	slow, normal, fast := Slow.step(), Normal.step(), Fast.step()
+	if !(slow < normal && normal < fast) {
+		t.Errorf("passos %v, %v, %v: esperado lento < normal < rápido", slow, normal, fast)
+	}
+	if len(Speeds) != 3 {
+		t.Errorf("len(Speeds) = %d, esperado 3", len(Speeds))
+	}
+}
+
+func TestGopherWalksAtItsOwnSpeed(t *testing.T) {
+	for _, speed := range Speeds {
+		g := newTestGopher(1000, 1000, 0)
+		g.stepSize = speed.step()
+		x0 := g.x
+
+		g.move()
+
+		if !near(g.x-x0, speed.step()) {
+			t.Errorf("%v: andou %v, esperado %v", speed, g.x-x0, speed.step())
+		}
+	}
+}
+
+func TestNewGopherUsesSpeedAndColor(t *testing.T) {
+	g := NewGopher(Fast, Palette[3])
+
+	if g.stepSize != Fast.step() || g.body != Palette[3] {
+		t.Errorf("stepSize = %v, body = %v; esperado %v e %v", g.stepSize, g.body, Fast.step(), Palette[3])
+	}
+}
+
+// lab converte uma cor sRGB para o espaço CIE L*a*b*, onde a distância
+// euclidiana se aproxima da diferença percebida entre duas cores.
+func lab(c color.RGBA) [3]float64 {
+	lin := func(v uint8) float64 {
+		f := float64(v) / 255
+		if f <= 0.04045 {
+			return f / 12.92
+		}
+		return math.Pow((f+0.055)/1.055, 2.4)
+	}
+	r, g, b := lin(c.R), lin(c.G), lin(c.B)
+	x := (0.4124*r + 0.3576*g + 0.1805*b) / 0.95047
+	y := 0.2126*r + 0.7152*g + 0.0722*b
+	z := (0.0193*r + 0.1192*g + 0.9505*b) / 1.08883
+	f := func(t float64) float64 {
+		if t > 0.008856 {
+			return math.Cbrt(t)
+		}
+		return 7.787*t + 16.0/116
+	}
+	fx, fy, fz := f(x), f(y), f(z)
+	return [3]float64{116*fy - 16, 500 * (fx - fy), 200 * (fy - fz)}
+}
+
+func colorDistance(a, b color.RGBA) float64 {
+	la, lb := lab(a), lab(b)
+	return math.Sqrt(math.Pow(la[0]-lb[0], 2) + math.Pow(la[1]-lb[1], 2) + math.Pow(la[2]-lb[2], 2))
+}
+
+func TestPaletteHasSevenDistinctColors(t *testing.T) {
+	const minDistance = 40 // acima de ~30 as cores já são claramente diferentes
+
+	if len(Palette) != 7 {
+		t.Fatalf("len(Palette) = %d, esperado 7", len(Palette))
+	}
+	for i, a := range Palette {
+		for j, b := range Palette[:i] {
+			if d := colorDistance(a, b); d < minDistance {
+				t.Errorf("cores %d e %d parecidas demais: distância %.1f < %v", i, j, d, minDistance)
+			}
+		}
+	}
+}
+
+func TestPaletteStandsOutFromGrassAndEyes(t *testing.T) {
+	const minDistance = 40
+	grass := color.RGBA{0x3A, 0x5C, 0x28, 255} // verde da grama já escurecida
+	white := eyeColor
+
+	for i, c := range Palette {
+		if d := colorDistance(c, grass); d < minDistance {
+			t.Errorf("cor %d se confunde com a grama: distância %.1f < %v", i, d, minDistance)
+		}
+		if d := colorDistance(c, white); d < minDistance {
+			t.Errorf("cor %d se confunde com o branco dos olhos: distância %.1f < %v", i, d, minDistance)
+		}
+	}
+}
+
+func TestNewGophersHaveDistinctColorsUpToPaletteSize(t *testing.T) {
+	for range 200 {
+		seen := map[color.RGBA]bool{}
+		for _, g := range NewGophers(len(Palette)) {
+			if seen[g.body] {
+				t.Fatalf("cor %v repetida com n igual ao tamanho da paleta", g.body)
+			}
+			seen[g.body] = true
+		}
+	}
+}
+
+func TestNewGophersReshufflesPaletteEachRound(t *testing.T) {
+	// Com o dobro de Gophers, cada cor aparece exatamente duas vezes.
+	count := map[color.RGBA]int{}
+	for _, g := range NewGophers(2 * len(Palette)) {
+		count[g.body]++
+	}
+	for _, c := range Palette {
+		if count[c] != 2 {
+			t.Errorf("cor %v usada %d vezes, esperado 2", c, count[c])
+		}
+	}
+}
+
+func TestNewGophersColorsComeFromThePermutation(t *testing.T) {
+	// Permutação fixa: o primeiro Gopher recebe Palette[3], o segundo Palette[0]...
+	perm := func(n int) []int { return []int{3, 0, 6, 1, 5, 2, 4} }
+	gophers := newGophers(3, perm, func(n int) int { return 0 })
+
+	for i, want := range []int{3, 0, 6} {
+		if gophers[i].body != Palette[want] {
+			t.Errorf("Gopher %d: cor %v, esperado Palette[%d]", i, gophers[i].body, want)
+		}
+	}
+}
+
+func TestNewGophersDrawSpeedsAtRandom(t *testing.T) {
+	draws := []int{2, 0, 1, 1, 0}
+	i := 0
+	intn := func(n int) int {
+		if n != len(Speeds) {
+			t.Errorf("intn(%d): esperado sorteio entre as %d velocidades", n, len(Speeds))
+		}
+		v := draws[i]
+		i++
+		return v
+	}
+
+	gophers := newGophers(len(draws), rand.Perm, intn)
+
+	for k, d := range draws {
+		if want := Speeds[d].step(); gophers[k].stepSize != want {
+			t.Errorf("Gopher %d: passo %v, esperado %v", k, gophers[k].stepSize, want)
+		}
+	}
+}
+
+func TestNewGophersUseEverySpeed(t *testing.T) {
+	r := rand.New(rand.NewPCG(11, 12))
+	seen := map[float64]bool{}
+	for _, g := range newGophers(100, r.Perm, r.IntN) {
+		seen[g.stepSize] = true
+	}
+	if len(seen) != len(Speeds) {
+		t.Errorf("%d velocidades diferentes em 100 Gophers, esperado %d", len(seen), len(Speeds))
 	}
 }

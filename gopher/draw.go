@@ -3,19 +3,17 @@ package gopher
 import (
 	"image/color"
 	"math"
-	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
-// Cores do Gopher.
+// Cores fixas do Gopher. A cor do corpo e das orelhas é de cada Gopher (ver Palette).
 var (
-	bodyColor      = color.RGBA{0x00, 0xAD, 0xD8, 255} // azul clássico do Go (#00ADD8): corpo e orelhas
-	eyeColor       = color.RGBA{255, 255, 255, 255}    // branco dos olhos
-	pupilColor     = color.RGBA{0, 0, 0, 255}          // pupilas e nariz
-	highlightColor = color.RGBA{255, 255, 255, 255}    // brilho nas pupilas
-	shadowColor    = color.RGBA{0, 0, 0, 100}          // sombra: preto semitransparente
+	eyeColor       = color.RGBA{255, 255, 255, 255} // branco dos olhos
+	pupilColor     = color.RGBA{0, 0, 0, 255}       // pupilas e nariz
+	highlightColor = color.RGBA{255, 255, 255, 255} // brilho nas pupilas
+	shadowColor    = color.RGBA{0, 0, 0, 100}       // sombra: preto semitransparente
 )
 
 // Deslocamento da sombra em relação ao corpo, em pixels (para a direita e para baixo).
@@ -30,23 +28,47 @@ type part struct {
 	cx, cy   float32
 	rx, ry   float32
 	angle    float64 // graus, sentido horário na tela (mesma convenção de heading)
-	color    color.Color
+	fill     fill
 	mirrored bool // também desenha a cópia espelhada (cx e angle invertidos)
+}
+
+// fill é o papel de cor de uma parte. A cor de fato é resolvida ao desenhar, já
+// que o corpo e as orelhas têm a cor de cada Gopher.
+type fill int
+
+const (
+	fillBody fill = iota
+	fillEye
+	fillPupil
+	fillHighlight
+)
+
+// color devolve a cor do papel f para um Gopher de corpo body.
+func (f fill) color(body color.RGBA) color.Color {
+	switch f {
+	case fillEye:
+		return eyeColor
+	case fillPupil:
+		return pupilColor
+	case fillHighlight:
+		return highlightColor
+	}
+	return body
 }
 
 // parts descreve o Gopher, de trás para frente.
 var parts = []part{
-	{cx: 1.16, cy: -0.18, rx: 0.19, ry: 0.13, angle: 17, color: bodyColor, mirrored: true}, // orelhas
-	{cx: 0, cy: 0, rx: 1, ry: 1, angle: 0, color: bodyColor},                               // corpo
-	{cx: 0.46, cy: -0.9, rx: 0.33, ry: 0.2, angle: 17, color: eyeColor, mirrored: true},    // olhos
+	{cx: 1.16, cy: -0.18, rx: 0.19, ry: 0.13, angle: 17, fill: fillBody, mirrored: true}, // orelhas
+	{cx: 0, cy: 0, rx: 1, ry: 1, angle: 0, fill: fillBody},                               // corpo
+	{cx: 0.46, cy: -0.9, rx: 0.33, ry: 0.2, angle: 17, fill: fillEye, mirrored: true},    // olhos
 	// Pupilas redondas e grandes (cerca de 45% do olho), na borda do olho e vazando
 	// cerca de 1px por ela, para dar o efeito de olhos esbugalhados.
-	{cx: 0.582, cy: -0.956, rx: 0.15, ry: 0.15, angle: 0, color: pupilColor, mirrored: true},
+	{cx: 0.582, cy: -0.956, rx: 0.15, ry: 0.15, angle: 0, fill: fillPupil, mirrored: true},
 	// Brilhos nas pupilas. Não são espelhados: a luz vem sempre de cima e da
 	// esquerda, o oposto do lado da sombra.
-	{cx: -0.632, cy: -1.016, rx: 0.05, ry: 0.05, angle: 0, color: highlightColor},
-	{cx: 0.532, cy: -1.016, rx: 0.05, ry: 0.05, angle: 0, color: highlightColor},
-	{cx: 0, cy: -0.97, rx: 0.08, ry: 0.06, angle: 0, color: pupilColor}, // nariz
+	{cx: -0.632, cy: -1.016, rx: 0.05, ry: 0.05, angle: 0, fill: fillHighlight},
+	{cx: 0.532, cy: -1.016, rx: 0.05, ry: 0.05, angle: 0, fill: fillHighlight},
+	{cx: 0, cy: -0.97, rx: 0.08, ry: 0.06, angle: 0, fill: fillPupil}, // nariz
 }
 
 // shapes é parts com as cópias espelhadas já expandidas, na ordem de desenho.
@@ -94,16 +116,14 @@ const spriteCenter = spriteSize / 2
 // cima, que na convenção dos ângulos (0º à direita, sentido horário) é -90º.
 const spriteHeading = -90
 
-// sprite é a imagem do Gopher (sem a sombra, que não gira junto), desenhada uma
-// única vez, na primeira chamada, e reaproveitada por todos os Gophers e em
-// todos os frames.
-var sprite = sync.OnceValue(renderSprite)
-
-func renderSprite() *ebiten.Image {
+// renderSprite desenha o Gopher (sem a sombra, que não gira junto) com o corpo
+// na cor body.
+func renderSprite(body color.RGBA) *ebiten.Image {
 	img := ebiten.NewImage(spriteSize, spriteSize)
+	const c = spriteCenter // centro do corpo na imagem
+
 	for _, s := range shapes {
-		fillEllipse(img, spriteCenter+s.cx*bodyRadius, spriteCenter+s.cy*bodyRadius,
-			s.rx*bodyRadius, s.ry*bodyRadius, s.angle, s.color)
+		fillEllipse(img, c+s.cx*bodyRadius, c+s.cy*bodyRadius, s.rx*bodyRadius, s.ry*bodyRadius, s.angle, s.fill.color(body))
 	}
 	return img
 }
@@ -113,9 +133,14 @@ func renderSprite() *ebiten.Image {
 func (g *Gopher) Draw(screen *ebiten.Image) {
 	vector.FillCircle(screen, float32(g.x)+shadowOffsetX, float32(g.y)+shadowOffsetY, bodyRadius, shadowColor, true)
 
+	// O sprite é desenhado na primeira vez em que é preciso, já na cor do Gopher.
+	if g.sprite == nil {
+		g.sprite = renderSprite(g.body)
+	}
+
 	op := &ebiten.DrawImageOptions{Filter: ebiten.FilterLinear}
 	op.GeoM.Translate(-spriteCenter, -spriteCenter) // gira em torno do centro do corpo
 	op.GeoM.Rotate(radians(g.facing - spriteHeading))
 	op.GeoM.Translate(g.x, g.y)
-	screen.DrawImage(sprite(), op)
+	screen.DrawImage(g.sprite, op)
 }

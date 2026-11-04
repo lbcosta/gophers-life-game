@@ -36,16 +36,6 @@ type Game struct {
 	spawned       bool        // os Gophers já foram espalhados pela tela
 }
 
-// newGophers cria n Gophers. A posição deles só é sorteada quando o tamanho da
-// tela é conhecido.
-func newGophers(n int) []*gopher.Gopher {
-	gophers := make([]*gopher.Gopher, n)
-	for i := range gophers {
-		gophers[i] = gopher.NewGopher()
-	}
-	return gophers
-}
-
 // loadGrass decodifica a textura de grama embutida.
 func loadGrass() (*ebiten.Image, error) {
 	img, err := png.Decode(bytes.NewReader(grassPNG))
@@ -105,14 +95,14 @@ func (g *Game) Update() error {
 
 	// Na primeira vez em que o tamanho da tela é conhecido, espalha os Gophers.
 	if !g.spawned {
-		for _, gp := range g.gophers {
-			gp.Spawn()
+		for i, gp := range g.gophers {
+			gp.Spawn(g.gophers[:i]...) // sem nascer em cima dos que já foram espalhados
 		}
 		g.spawned = true
 	}
 
 	for _, gp := range g.gophers {
-		gp.Update()
+		gp.Update(g.gophers...)
 	}
 
 	return nil
@@ -145,7 +135,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := ebiten.RunGame(&Game{gophers: newGophers(gopherCount), grass: grass}); err != nil {
+	if err := ebiten.RunGame(&Game{gophers: gopher.NewGophers(gopherCount), grass: grass}); err != nil {
 		log.Fatal(err)
 	}
 }

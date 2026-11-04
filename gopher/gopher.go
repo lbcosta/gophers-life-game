@@ -4,12 +4,12 @@
 package gopher
 
 import (
+	"image/color"
 	"math"
 	"math/rand/v2"
-)
 
-// step é a distância, em pixels, percorrida a cada passo.
-const step = 4
+	"github.com/hajimehoshi/ebiten/v2"
+)
 
 // walkEveryTicks é de quantos em quantos ticks o Gopher dá um passo.
 // Com 60 ticks por segundo, 7 ticks equivalem a cerca de 8,6 passos por segundo.
@@ -35,12 +35,16 @@ const (
 	turnSpeed = 6.0
 )
 
-// Gopher anda pela tela mantendo a hit box sempre inteira dentro dela.
-// A posição é o centro do corpo.
+// Gopher anda pela tela mantendo a hit box sempre inteira dentro dela e quica
+// nos outros Gophers. A posição é o centro do corpo.
 type Gopher struct {
 	x, y          float64
 	width, height float64 // tamanho da tela
 	ticks         int     // ticks desde a criação; controla o ritmo dos passos
+
+	stepSize float64    // pixels por passo; vem da Speed
+	body     color.RGBA // cor do corpo e das orelhas
+	sprite   *ebiten.Image
 
 	heading float64 // direção do movimento, em graus [0, 360)
 	facing  float64 // direção para a qual o desenho aponta; gira até alcançar heading
@@ -51,23 +55,30 @@ type Gopher struct {
 	intn   func(n int) int // inteiro em [0, n)
 }
 
-// NewGopher cria um Gopher no canto superior esquerdo da tela, olhando para
-// uma direção aleatória. O tamanho da tela é informado depois, por Resize.
-func NewGopher() *Gopher {
-	return newGopher(rand.Float64, rand.IntN)
+// NewGopher cria um Gopher de velocidade speed e corpo da cor body, no canto
+// superior esquerdo da tela, olhando para uma direção aleatória. O tamanho da
+// tela é informado depois, por Resize.
+func NewGopher(speed Speed, body color.RGBA) *Gopher {
+	g := newGopher(rand.Float64, rand.IntN)
+	g.stepSize = speed.step()
+	g.body = body
+	return g
 }
 
 // newGopher é NewGopher com as fontes de sorteio informadas, para que os
-// testes controlem também o sorteio da direção inicial.
+// testes controlem também o sorteio da direção inicial. O Gopher criado tem
+// velocidade Normal e a primeira cor da paleta.
 func newGopher(chance func() float64, intn func(n int) int) *Gopher {
 	heading := float64(intn(360))
 	return &Gopher{
-		x:       hitboxRadius,
-		y:       hitboxRadius,
-		heading: heading,
-		facing:  heading,
-		chance:  chance,
-		intn:    intn,
+		x:        hitboxRadius,
+		y:        hitboxRadius,
+		stepSize: Normal.step(),
+		body:     Palette[0],
+		heading:  heading,
+		facing:   heading,
+		chance:   chance,
+		intn:     intn,
 	}
 }
 
@@ -83,23 +94,44 @@ func (g *Gopher) Resize(width, height float64) {
 	g.keepInside()
 }
 
+// spawnAttempts é quantas posições Spawn tenta antes de aceitar uma que se
+// sobreponha a outro Gopher.
+const spawnAttempts = 100
+
 // Spawn põe o Gopher em uma posição aleatória da tela, com a hit box inteira
-// dentro dela, e defasa o ritmo dos passos, para que vários Gophers não andem
-// em sincronia. Deve ser chamado depois de Resize, que informa o tamanho da tela.
-func (g *Gopher) Spawn() {
-	g.x = hitboxRadius + g.chance()*(g.width-2*hitboxRadius)
-	g.y = hitboxRadius + g.chance()*(g.height-2*hitboxRadius)
+// dentro dela e, se possível, sem se sobrepor aos Gophers em others. Defasa
+// também o ritmo dos passos, para que vários Gophers não andem em sincronia.
+// Deve ser chamado depois de Resize, que informa o tamanho da tela.
+func (g *Gopher) Spawn(others ...*Gopher) {
+	for range spawnAttempts {
+		g.x = hitboxRadius + g.chance()*(g.width-2*hitboxRadius)
+		g.y = hitboxRadius + g.chance()*(g.height-2*hitboxRadius)
+		g.keepInside() // necessário quando a tela é pequena demais
+		if !g.overlapsAny(others) {
+			break
+		}
+	}
 	g.ticks = g.intn(walkEveryTicks)
-	g.keepInside() // necessário quando a tela é pequena demais
+}
+
+// overlapsAny informa se a hit box de g se sobrepõe à de algum Gopher em others.
+func (g *Gopher) overlapsAny(others []*Gopher) bool {
+	for _, o := range others {
+		if o != g && math.Hypot(g.x-o.x, g.y-o.y) < collisionDistance {
+			return true
+		}
+	}
+	return false
 }
 
 // Update deve ser chamado uma vez por tick do jogo. A cada walkEveryTicks
 // ticks o Gopher dá um passo, e a cada tick o desenho gira um pouco em direção
-// ao sentido do movimento.
-func (g *Gopher) Update() {
+// ao sentido do movimento. others são os Gophers com quem ele pode colidir; o
+// próprio Gopher pode estar entre eles, e é ignorado.
+func (g *Gopher) Update(others ...*Gopher) {
 	g.ticks++
 	if g.ticks%walkEveryTicks == 0 {
-		g.move()
+		g.move(others...)
 	}
 	g.turnTowardsHeading()
 }
@@ -107,16 +139,26 @@ func (g *Gopher) Update() {
 // move dá um passo.
 //
 // Primeiro sorteia se o Gopher gira (com chance turnChance). Se girar, sorteia
-// o giro em [-maxTurn, maxTurn] graus. Depois anda step pixels na direção
-// resultante. Se o passo levaria a hit box para fora da tela, o Gopher quica
-// na parede: a componente do movimento perpendicular a ela é invertida.
-func (g *Gopher) move() {
+// o giro em [-maxTurn, maxTurn] graus. Depois anda stepSize pixels na direção
+// resultante.
+//
+// Se o passo levaria a hit box de g a colidir com a de outro Gopher, g reage
+// como sorteado por interact. Se levaria a hit box para fora da tela, o Gopher
+// quica na parede: a componente do movimento perpendicular a ela é invertida.
+func (g *Gopher) move(others ...*Gopher) {
 	if g.chance() < turnChance {
 		g.heading = normalize(g.heading + float64(g.intn(2*maxTurn+1)-maxTurn))
 	}
 
 	sin, cos := math.Sincos(radians(g.heading))
-	dx, dy := step*cos, step*sin
+	dx, dy := g.stepSize*cos, g.stepSize*sin
+
+	for _, o := range others {
+		if o != g && g.collides(o, dx, dy) {
+			dx, dy = g.interact(o, dx, dy)
+			g.heading = normalize(degrees(math.Atan2(dy, dx)))
+		}
+	}
 
 	if !g.fitsX(g.x + dx) { // parede esquerda ou direita
 		g.heading = normalize(180 - g.heading)
@@ -168,6 +210,11 @@ func clamp(v, lo, hi float64) float64 {
 // radians converte um ângulo de graus para radianos.
 func radians(deg float64) float64 {
 	return deg * math.Pi / 180
+}
+
+// degrees converte um ângulo de radianos para graus.
+func degrees(rad float64) float64 {
+	return rad * 180 / math.Pi
 }
 
 // normalize leva um ângulo, em graus, para o intervalo [0, 360).
