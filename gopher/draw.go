@@ -11,10 +11,11 @@ import (
 
 // Cores do Gopher.
 var (
-	bodyColor   = color.RGBA{0x00, 0xAD, 0xD8, 255} // azul clássico do Go (#00ADD8): corpo e orelhas
-	eyeColor    = color.RGBA{255, 255, 255, 255}    // branco dos olhos
-	pupilColor  = color.RGBA{0, 0, 0, 255}          // pupilas e nariz
-	shadowColor = color.RGBA{0, 0, 0, 100}          // sombra: preto semitransparente
+	bodyColor      = color.RGBA{0x00, 0xAD, 0xD8, 255} // azul clássico do Go (#00ADD8): corpo e orelhas
+	eyeColor       = color.RGBA{255, 255, 255, 255}    // branco dos olhos
+	pupilColor     = color.RGBA{0, 0, 0, 255}          // pupilas e nariz
+	highlightColor = color.RGBA{255, 255, 255, 255}    // brilho nas pupilas
+	shadowColor    = color.RGBA{0, 0, 0, 100}          // sombra: preto semitransparente
 )
 
 // Deslocamento da sombra em relação ao corpo, em pixels (para a direita e para baixo).
@@ -38,8 +39,14 @@ var parts = []part{
 	{cx: 1.16, cy: -0.18, rx: 0.19, ry: 0.13, angle: 17, color: bodyColor, mirrored: true}, // orelhas
 	{cx: 0, cy: 0, rx: 1, ry: 1, angle: 0, color: bodyColor},                               // corpo
 	{cx: 0.46, cy: -0.9, rx: 0.33, ry: 0.2, angle: 17, color: eyeColor, mirrored: true},    // olhos
-	{cx: 0.58, cy: -1.05, rx: 0.06, ry: 0.09, angle: 0, color: pupilColor, mirrored: true}, // pupilas
-	{cx: 0, cy: -0.97, rx: 0.08, ry: 0.06, angle: 0, color: pupilColor},                    // nariz
+	// Pupilas redondas e grandes (cerca de 45% do olho), na borda do olho e vazando
+	// cerca de 1px por ela, para dar o efeito de olhos esbugalhados.
+	{cx: 0.582, cy: -0.956, rx: 0.15, ry: 0.15, angle: 0, color: pupilColor, mirrored: true},
+	// Brilhos nas pupilas. Não são espelhados: a luz vem sempre de cima e da
+	// esquerda, o oposto do lado da sombra.
+	{cx: -0.632, cy: -1.016, rx: 0.05, ry: 0.05, angle: 0, color: highlightColor},
+	{cx: 0.532, cy: -1.016, rx: 0.05, ry: 0.05, angle: 0, color: highlightColor},
+	{cx: 0, cy: -0.97, rx: 0.08, ry: 0.06, angle: 0, color: pupilColor}, // nariz
 }
 
 // shapes é parts com as cópias espelhadas já expandidas, na ordem de desenho.
