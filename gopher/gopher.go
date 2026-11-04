@@ -83,6 +83,16 @@ func (g *Gopher) Resize(width, height float64) {
 	g.keepInside()
 }
 
+// Spawn põe o Gopher em uma posição aleatória da tela, com a hit box inteira
+// dentro dela, e defasa o ritmo dos passos, para que vários Gophers não andem
+// em sincronia. Deve ser chamado depois de Resize, que informa o tamanho da tela.
+func (g *Gopher) Spawn() {
+	g.x = hitboxRadius + g.chance()*(g.width-2*hitboxRadius)
+	g.y = hitboxRadius + g.chance()*(g.height-2*hitboxRadius)
+	g.ticks = g.intn(walkEveryTicks)
+	g.keepInside() // necessário quando a tela é pequena demais
+}
+
 // Update deve ser chamado uma vez por tick do jogo. A cada walkEveryTicks
 // ticks o Gopher dá um passo, e a cada tick o desenho gira um pouco em direção
 // ao sentido do movimento.

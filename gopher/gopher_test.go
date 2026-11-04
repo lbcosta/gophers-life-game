@@ -316,3 +316,65 @@ func TestMirroredPartsAreExpanded(t *testing.T) {
 		t.Errorf("len(shapes) = %d, esperado %d", len(shapes), i)
 	}
 }
+
+func TestSpawnPlacesGopherInsideScreen(t *testing.T) {
+	r := rand.New(rand.NewPCG(3, 4))
+	g := newGopher(r.Float64, r.IntN)
+	g.Resize(300, 200)
+
+	for i := range 10_000 {
+		g.Spawn()
+		if !g.insideScreen() {
+			t.Fatalf("sorteio %d: hit box fora da tela, posição (%v, %v)", i, g.x, g.y)
+		}
+	}
+}
+
+func TestSpawnUsesDrawnValues(t *testing.T) {
+	g := newGopher(
+		func() float64 { return 0.5 }, // meio da faixa válida, nos dois eixos
+		func(n int) int { return 3 },
+	)
+	g.Resize(300, 200)
+
+	g.Spawn()
+
+	if g.x != 150 || g.y != 100 {
+		t.Errorf("posição (%v, %v), esperado o centro (150, 100)", g.x, g.y)
+	}
+	if g.ticks != 3 {
+		t.Errorf("ticks = %d, esperado a fase sorteada, 3", g.ticks)
+	}
+}
+
+func TestSpawnOnScreenTooSmallStaysInside(t *testing.T) {
+	g := newGopher(func() float64 { return 0.5 }, func(n int) int { return 0 })
+	g.Resize(hitboxRadius, hitboxRadius) // menor que a hit box
+
+	g.Spawn()
+
+	if g.x != hitboxRadius || g.y != hitboxRadius {
+		t.Errorf("posição (%v, %v), esperado o canto (%v, %v)", g.x, g.y, hitboxRadius, hitboxRadius)
+	}
+}
+
+func TestSpawnDesynchronizesSteps(t *testing.T) {
+	// Dois Gophers com fases diferentes não dão o passo no mesmo tick.
+	stepTick := func(phase int) int {
+		g := newGopher(func() float64 { return 0.99 }, func(n int) int { return phase })
+		g.Resize(500, 500)
+		g.Spawn()
+		x0, y0 := g.x, g.y
+		for tick := 1; tick <= walkEveryTicks; tick++ {
+			g.Update()
+			if g.x != x0 || g.y != y0 {
+				return tick
+			}
+		}
+		return -1
+	}
+
+	if a, b := stepTick(0), stepTick(3); a == b || a < 0 || b < 0 {
+		t.Errorf("fases diferentes deveriam dar o passo em ticks diferentes, mas foram %d e %d", a, b)
+	}
+}

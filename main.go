@@ -16,6 +16,9 @@ import (
 // 1 é o brilho original da textura; valores menores deixam mais escuro.
 const grassBrightness = 0.6
 
+// gopherCount é a quantidade de Gophers do jogo.
+const gopherCount = 5
+
 // grassPNG é a textura de grama, embutida no binário para o jogo
 // funcionar independentemente do diretório em que for executado.
 //
@@ -23,13 +26,24 @@ const grassBrightness = 0.6
 var grassPNG []byte
 
 type Game struct {
-	gopher *gopher.Gopher
+	gophers []*gopher.Gopher
 
 	grass      *ebiten.Image // ladrilho da textura de grama
 	background *ebiten.Image // grama já ladrilhada e escurecida, do tamanho da tela
 
 	screen        image.Point // tamanho da tela, informado por Layout
-	screenChanged bool        // screen mudou e o Gopher ainda não foi avisado
+	screenChanged bool        // screen mudou e os Gophers ainda não foram avisados
+	spawned       bool        // os Gophers já foram espalhados pela tela
+}
+
+// newGophers cria n Gophers. A posição deles só é sorteada quando o tamanho da
+// tela é conhecido.
+func newGophers(n int) []*gopher.Gopher {
+	gophers := make([]*gopher.Gopher, n)
+	for i := range gophers {
+		gophers[i] = gopher.NewGopher()
+	}
+	return gophers
 }
 
 // loadGrass decodifica a textura de grama embutida.
@@ -83,10 +97,23 @@ func (g *Game) Update() error {
 	}
 
 	if g.screenChanged {
-		g.gopher.Resize(float64(g.screen.X), float64(g.screen.Y))
+		for _, gp := range g.gophers {
+			gp.Resize(float64(g.screen.X), float64(g.screen.Y))
+		}
 		g.screenChanged = false
 	}
-	g.gopher.Update()
+
+	// Na primeira vez em que o tamanho da tela é conhecido, espalha os Gophers.
+	if !g.spawned {
+		for _, gp := range g.gophers {
+			gp.Spawn()
+		}
+		g.spawned = true
+	}
+
+	for _, gp := range g.gophers {
+		gp.Update()
+	}
 
 	return nil
 }
@@ -94,7 +121,9 @@ func (g *Game) Update() error {
 // Draw roda a cada frame: só desenha.
 func (g *Game) Draw(screen *ebiten.Image) {
 	g.drawBackground(screen)
-	g.gopher.Draw(screen)
+	for _, gp := range g.gophers {
+		gp.Draw(screen)
+	}
 }
 
 // Layout define a resolução lógica: acompanha o tamanho da tela. Só registra
@@ -116,7 +145,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := ebiten.RunGame(&Game{gopher: gopher.NewGopher(), grass: grass}); err != nil {
+	if err := ebiten.RunGame(&Game{gophers: newGophers(gopherCount), grass: grass}); err != nil {
 		log.Fatal(err)
 	}
 }
