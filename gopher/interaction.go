@@ -2,9 +2,11 @@ package gopher
 
 import "math"
 
-// collisionDistance é a distância entre os centros de dois Gophers abaixo da
-// qual as hit boxes (círculos de raio hitboxRadius) se sobrepõem.
-const collisionDistance = 2 * hitboxRadius
+// touchDistance é a distância entre os centros de g e other abaixo da qual as
+// hit boxes se sobrepõem. Muda conforme eles crescem.
+func (g *Gopher) touchDistance(other *Gopher) float64 {
+	return g.hitbox() + other.hitbox()
+}
 
 // reaction é um possível desfecho de uma colisão. Recebe o Gopher g, aquele com
 // quem ele colide (other) e o deslocamento (dx, dy) que g faria neste passo, e
@@ -43,5 +45,5 @@ func asWall(g, other *Gopher, dx, dy float64) (float64, float64) {
 func (g *Gopher) collides(other *Gopher, dx, dy float64) bool {
 	current := math.Hypot(g.x-other.x, g.y-other.y)
 	next := math.Hypot(g.x+dx-other.x, g.y+dy-other.y)
-	return current > 0 && next < collisionDistance && next < current
+	return current > 0 && next < g.touchDistance(other) && next < current
 }

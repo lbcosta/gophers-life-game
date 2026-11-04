@@ -30,8 +30,9 @@ type part struct {
 	rx, ry   float32
 	angle    float64 // graus, sentido horário na tela (mesma convenção de heading)
 	fill     fill
-	mirrored bool // também desenha a cópia espelhada (cx e angle invertidos)
-	shiny    bool // recebe um brilho (ver highlightCenters); só para partes circulares
+	mirrored bool  // também desenha a cópia espelhada (cx e angle invertidos)
+	from     Stage // primeira fase em que a parte aparece; o zero (Baby) é o corpo
+	shiny    bool  // recebe um brilho (ver highlightCenters); só para partes circulares
 }
 
 // fill é o papel de cor de uma parte. A cor de fato é resolvida ao desenhar, já
@@ -59,14 +60,14 @@ func (f fill) color(body color.RGBA) color.Color {
 
 // parts descreve o Gopher, de trás para frente.
 var parts = []part{
-	{cx: 1.16, cy: -0.18, rx: 0.19, ry: 0.13, angle: 17, fill: fillBody, mirrored: true}, // orelhas
-	{cx: 0, cy: 0, rx: 1, ry: 1, angle: 0, fill: fillBody},                               // corpo
-	{cx: 0.46, cy: -0.9, rx: 0.33, ry: 0.2, angle: 17, fill: fillEye, mirrored: true},    // olhos
+	{cx: 1.16, cy: -0.18, rx: 0.19, ry: 0.13, angle: 17, fill: fillBody, from: Adult, mirrored: true}, // orelhas
+	{cx: 0, cy: 0, rx: 1, ry: 1, angle: 0, fill: fillBody},                                            // corpo
+	{cx: 0.46, cy: -0.9, rx: 0.33, ry: 0.2, angle: 17, fill: fillEye, from: Teen, mirrored: true},     // olhos
 	// Pupilas redondas e grandes (cerca de 45% do olho), na borda do olho e vazando
 	// cerca de 1px por ela, para dar o efeito de olhos esbugalhados. Cada uma
 	// recebe um brilho, desenhado à parte (ver highlightCenters).
-	{cx: 0.582, cy: -0.956, rx: 0.15, ry: 0.15, angle: 0, fill: fillPupil, mirrored: true, shiny: true},
-	{cx: 0, cy: -0.97, rx: 0.08, ry: 0.06, angle: 0, fill: fillPupil}, // nariz
+	{cx: 0.582, cy: -0.956, rx: 0.15, ry: 0.15, angle: 0, fill: fillPupil, from: Teen, mirrored: true, shiny: true},
+	{cx: 0, cy: -0.97, rx: 0.08, ry: 0.06, angle: 0, fill: fillPupil, from: Adult}, // nariz
 }
 
 // shapes é parts com as cópias espelhadas já expandidas, na ordem de desenho.
@@ -76,6 +77,24 @@ var shapes = expand(parts)
 // do raio do corpo. Calculada a partir de shapes, então acompanha qualquer
 // mudança em parts.
 var drawingReach = reach(shapes)
+
+// stageReach é, para cada fase, a distância máxima do desenho ao centro do
+// corpo, em múltiplos do raio do corpo: só conta as partes que já apareceram.
+var stageReach = reachByStage(shapes)
+
+func reachByStage(ps []part) [numStages]float32 {
+	var out [numStages]float32
+	for stage := range out {
+		var visible []part
+		for _, p := range ps {
+			if p.from <= Stage(stage) {
+				visible = append(visible, p)
+			}
+		}
+		out[stage] = reach(visible)
+	}
+	return out
+}
 
 // bodyRadius é o raio do corpo, em pixels, escolhido para que o desenho inteiro
 // caiba na hit box.
@@ -150,10 +169,13 @@ func highlightCenters(facing float64) []point {
 }
 
 // renderSprite desenha o Gopher (sem a sombra e o brilho, que não giram junto)
-// com o corpo na cor body.
-func renderSprite(body color.RGBA) *ebiten.Image {
+// com o corpo na cor body, só com as partes que já aparecem em stage.
+func renderSprite(body color.RGBA, stage Stage) *ebiten.Image {
 	img := ebiten.NewImage(spriteSize, spriteSize)
 	for _, s := range shapes {
+		if s.from > stage {
+			continue
+		}
 		fillEllipse(img, spriteCenter+s.cx*bodyRadius, spriteCenter+s.cy*bodyRadius,
 			s.rx*bodyRadius, s.ry*bodyRadius, s.angle, s.fill.color(body))
 	}
@@ -170,25 +192,36 @@ func (g *Gopher) Draw(screen *ebiten.Image) {
 // drawShadow pinta a sombra do Gopher. Ela fica sempre no mesmo lado, já que a
 // luz não gira com ele.
 func (g *Gopher) drawShadow(screen *ebiten.Image) {
-	vector.FillCircle(screen, float32(g.x)+shadowOffsetX, float32(g.y)+shadowOffsetY, bodyRadius, shadowColor, true)
+	vector.FillCircle(screen, float32(g.x)+shadowOffsetX, float32(g.y)+shadowOffsetY, g.bodySize(), shadowColor, true)
 }
 
-// drawFigure pinta o Gopher centrado na posição atual e apontando para facing,
-// com o brilho nas pupilas.
+// drawFigure pinta o Gopher centrado na posição atual. Bebês e crianças são uma
+// bolinha da cor do corpo. A partir da adolescência é o desenho da fase,
+// reduzido ao tamanho do corpo e apontando para facing, com o brilho nas
+// pupilas.
 func (g *Gopher) drawFigure(screen *ebiten.Image) {
-	// O sprite é desenhado na primeira vez em que é preciso, já na cor do Gopher.
-	if g.sprite == nil {
-		g.sprite = renderSprite(g.body)
+	stage, size := g.Stage(), g.bodySize()
+	if stage < Teen {
+		vector.FillCircle(screen, float32(g.x), float32(g.y), size, g.body, true)
+		return
 	}
 
+	// O sprite de cada fase é desenhado na primeira vez em que é preciso, já na
+	// cor do Gopher.
+	if g.sprites[stage] == nil {
+		g.sprites[stage] = renderSprite(g.body, stage)
+	}
+
+	scale := float64(size / bodyRadius)
 	op := &ebiten.DrawImageOptions{Filter: ebiten.FilterLinear}
 	op.GeoM.Translate(-spriteCenter, -spriteCenter) // gira em torno do centro do corpo
+	op.GeoM.Scale(scale, scale)
 	op.GeoM.Rotate(radians(g.facing - spriteHeading))
 	op.GeoM.Translate(g.x, g.y)
-	screen.DrawImage(g.sprite, op)
+	screen.DrawImage(g.sprites[stage], op)
 
 	for _, h := range highlightCenters(g.facing) {
-		vector.FillCircle(screen, float32(g.x)+h.x*bodyRadius, float32(g.y)+h.y*bodyRadius,
-			highlightRadius*bodyRadius, highlightColor, true)
+		vector.FillCircle(screen, float32(g.x)+h.x*size, float32(g.y)+h.y*size,
+			highlightRadius*size, highlightColor, true)
 	}
 }

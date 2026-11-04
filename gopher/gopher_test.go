@@ -10,6 +10,10 @@ import (
 
 const eps = 1e-4
 
+// collisionDistance é a distância entre os centros de dois Gophers adultos
+// (os que newGopher cria) abaixo da qual as hit boxes se sobrepõem.
+const collisionDistance = 2 * hitboxRadius
+
 // step é o passo de um Gopher de velocidade Normal, que é a dos Gophers criados
 // por newGopher.
 var step = Normal.step()
@@ -815,6 +819,165 @@ func TestHighlightsStayInsidePupilsAndTowardsTheLight(t *testing.T) {
 			if h.x >= pupil.x || h.y >= pupil.y {
 				t.Errorf("facing %v: brilho %d em %+v não está acima e à esquerda da pupila %+v", facing, i, h, pupil)
 			}
+		}
+	}
+}
+
+func TestMaturityRangesAreDisjointAndIncreasing(t *testing.T) {
+	prev := 0
+	for i, r := range maturityRanges {
+		if r.min <= prev || r.max < r.min {
+			t.Errorf("intervalo %d = %+v: esperado começar depois de %d e não ser vazio", i, r, prev)
+		}
+		prev = r.max
+	}
+}
+
+func TestNewMaturityStaysInRangesAndIncreases(t *testing.T) {
+	r := rand.New(rand.NewPCG(21, 22))
+	seen := map[maturity]bool{}
+	for range 1000 {
+		m := newMaturity(r.IntN)
+		seen[m] = true
+		for i, age := range m {
+			if age < maturityRanges[i].min || age > maturityRanges[i].max {
+				t.Fatalf("maturidade %v fora do intervalo %+v na fase %d", m, maturityRanges[i], i)
+			}
+			if i > 0 && age <= m[i-1] {
+				t.Fatalf("maturidade %v não é crescente", m)
+			}
+		}
+	}
+	if len(seen) < 100 {
+		t.Errorf("só %d maturidades diferentes em 1000 sorteios", len(seen))
+	}
+}
+
+func TestNewGopherIsBornBabyWithDrawnMaturity(t *testing.T) {
+	g := NewGopher(Normal, Palette[0])
+	if g.Stage() != Baby || g.age != 0 {
+		t.Errorf("fase %v com idade %d, esperado bebê recém-nascido", g.Stage(), g.age)
+	}
+	if g.hitbox() >= hitboxRadius {
+		t.Errorf("hit box do bebê = %v, esperado menor que %v", g.hitbox(), hitboxRadius)
+	}
+}
+
+func TestStageChangesExactlyAtMaturity(t *testing.T) {
+	g := newTestGopher(800, 600, 0)
+	g.age = 0
+	g.maturity = maturity{100, 200, 300}
+
+	want := []struct {
+		age   int
+		stage Stage
+	}{{0, Baby}, {99, Baby}, {100, Child}, {199, Child}, {200, Teen}, {299, Teen}, {300, Adult}, {5000, Adult}}
+	for _, w := range want {
+		g.age = w.age
+		if got := g.Stage(); got != w.stage {
+			t.Errorf("idade %d: fase %v, esperado %v", w.age, got, w.stage)
+		}
+	}
+}
+
+func TestUpdateAgesTheGopher(t *testing.T) {
+	g := newTestGopher(800, 600, 0)
+	g.age = 0
+	for range 10 {
+		g.Update()
+	}
+	if g.age != 10 {
+		t.Errorf("age = %d, esperado 10", g.age)
+	}
+}
+
+func TestSpawnDoesNotAgeTheGopher(t *testing.T) {
+	g := newTestGopher(800, 600, 0)
+	g.age = 0
+	g.intn = func(n int) int { return n - 1 } // defasagem máxima dos passos
+	g.Spawn()
+
+	if g.age != 0 {
+		t.Errorf("age = %d depois de Spawn, esperado 0", g.age)
+	}
+}
+
+func TestBodyAndHitboxGrowWithAge(t *testing.T) {
+	g := newTestGopher(800, 600, 0)
+	g.maturity = maturity{100, 200, 300}
+
+	g.age = 0
+	if g.bodySize() != babySize {
+		t.Errorf("corpo ao nascer = %v, esperado %v", g.bodySize(), babySize)
+	}
+	// No começo de cada fase o corpo tem o tamanho dela.
+	for age, want := range map[int]float32{100: childSize, 200: teenSize, 300: bodyRadius, 1000: bodyRadius} {
+		g.age = age
+		if got := g.bodySize(); math.Abs(float64(got-want)) > 1e-3 {
+			t.Errorf("idade %d: corpo %v, esperado %v", age, got, want)
+		}
+	}
+
+	// O corpo nunca encolhe, e a hit box nunca é menor que o corpo nem maior que a do adulto.
+	prev := float32(0)
+	for age := 0; age <= 400; age++ {
+		g.age = age
+		if g.bodySize() < prev {
+			t.Fatalf("idade %d: corpo encolheu de %v para %v", age, prev, g.bodySize())
+		}
+		prev = g.bodySize()
+		if h := g.hitbox(); h < float64(g.bodySize())-1e-3 || h > hitboxRadius+1e-3 {
+			t.Fatalf("idade %d: hit box %v fora de [%v, %v]", age, h, g.bodySize(), hitboxRadius)
+		}
+	}
+
+	g.age = 300
+	if g.hitbox() != hitboxRadius {
+		t.Errorf("hit box do adulto = %v, esperado %v", g.hitbox(), hitboxRadius)
+	}
+}
+
+func TestHitboxContainsTheDrawnFigureAtEveryStage(t *testing.T) {
+	for stage := Baby; stage <= Adult; stage++ {
+		var visible []part
+		for _, p := range shapes {
+			if p.from <= stage {
+				visible = append(visible, p)
+			}
+		}
+		if got := stageReach[stage]; got != reach(visible) {
+			t.Errorf("fase %v: alcance %v, esperado %v", stage, got, reach(visible))
+		}
+	}
+	if stageReach[Baby] != 1 || stageReach[Child] != 1 {
+		t.Errorf("bebê e criança são só o corpo: alcance %v e %v, esperado 1", stageReach[Baby], stageReach[Child])
+	}
+	if !(stageReach[Teen] > 1 && stageReach[Teen] < stageReach[Adult]) {
+		t.Errorf("alcance do adolescente %v, esperado entre 1 e %v", stageReach[Teen], stageReach[Adult])
+	}
+}
+
+func TestGrowingGopherStaysInsideTheScreen(t *testing.T) {
+	g := newTestGopher(300, 300, 0)
+	g.age = 0
+	g.maturity = maturity{50, 100, 150}
+	g.x, g.y = 7, 293 // encostado no canto, onde um corpo maior não cabe
+	g.keepInside()
+
+	for range 200 {
+		g.Update()
+		if !g.insideScreen() {
+			t.Fatalf("idade %d: hit box %v fora da tela, posição (%v, %v)", g.age, g.hitbox(), g.x, g.y)
+		}
+	}
+}
+
+func TestBabiesFitWhereAdultsDoNot(t *testing.T) {
+	c := &Colony{gophers: NewGophers(5)}
+	c.Resize(300, 200) // cinco adultos de 64px não cabem folgados aqui
+	for i, g := range c.gophers {
+		if !g.insideScreen() {
+			t.Errorf("Gopher %d nasceu fora da tela, em (%v, %v)", i, g.x, g.y)
 		}
 	}
 }

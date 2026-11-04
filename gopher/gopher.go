@@ -16,8 +16,9 @@ import (
 // Com 60 ticks por segundo, 7 ticks equivalem a cerca de 8,6 passos por segundo.
 const walkEveryTicks = 7
 
-// hitboxRadius é o raio da hit box do Gopher: um círculo de 64px de diâmetro,
-// centrado no corpo, que contém o desenho inteiro (corpo, orelhas e olhos).
+// hitboxRadius é o raio da hit box do Gopher adulto: um círculo de 64px de
+// diâmetro, centrado no corpo, que contém o desenho inteiro (corpo, orelhas e
+// olhos). Antes de adulto a hit box é menor (ver hitbox).
 const hitboxRadius = 32
 
 // Parâmetros da caminhada. Os ângulos são em graus, com 0º apontando para a
@@ -37,15 +38,18 @@ const (
 )
 
 // Gopher anda pela tela mantendo a hit box sempre inteira dentro dela e quica
-// nos outros Gophers. A posição é o centro do corpo.
+// nos outros Gophers. A posição é o centro do corpo. Ele nasce bebê e cresce
+// com a idade (ver Stage), e a hit box acompanha o crescimento.
 type Gopher struct {
 	x, y          float64
-	width, height float64 // tamanho da tela
-	ticks         int     // ticks desde a criação; controla o ritmo dos passos
+	width, height float64  // tamanho da tela
+	ticks         int      // controla o ritmo dos passos; Spawn o defasa, então não serve de idade
+	age           int      // ticks vividos
+	maturity      maturity // idades em que entra em cada fase da vida
 
-	stepSize float64    // pixels por passo; vem da Speed
-	body     color.RGBA // cor do corpo e das orelhas
-	sprite   *ebiten.Image
+	stepSize float64                  // pixels por passo; vem da Speed
+	body     color.RGBA               // cor do corpo e das orelhas
+	sprites  [numStages]*ebiten.Image // desenho de cada fase que tem figura, feito sob demanda
 
 	heading float64 // direção do movimento, em graus [0, 360)
 	facing  float64 // direção para a qual o desenho aponta; gira até alcançar heading
@@ -56,11 +60,14 @@ type Gopher struct {
 	intn   func(n int) int // inteiro em [0, n)
 }
 
-// NewGopher cria um Gopher de velocidade speed e corpo da cor body, no canto
-// superior esquerdo da tela, olhando para uma direção aleatória. O tamanho da
-// tela é informado depois, por Resize.
+// NewGopher cria um Gopher bebê de velocidade speed e corpo da cor body, no
+// canto superior esquerdo da tela, olhando para uma direção aleatória. A idade
+// em que ele passa para cada fase da vida é sorteada (ver newMaturity). O
+// tamanho da tela é informado depois, por Resize.
 func NewGopher(speed Speed, body color.RGBA) *Gopher {
 	g := newGopher(rand.Float64, rand.IntN)
+	g.maturity = newMaturity(g.intn)
+	g.age = 0
 	g.stepSize = speed.step()
 	g.body = body
 	return g
@@ -68,12 +75,14 @@ func NewGopher(speed Speed, body color.RGBA) *Gopher {
 
 // newGopher é NewGopher com as fontes de sorteio informadas, para que os
 // testes controlem também o sorteio da direção inicial. O Gopher criado tem
-// velocidade Normal e a primeira cor da paleta.
+// velocidade Normal, a primeira cor da paleta e maturidade no meio dos
+// intervalos, e já é adulto, que é o que a maioria dos testes precisa.
 func newGopher(chance func() float64, intn func(n int) int) *Gopher {
 	heading := float64(intn(360))
-	return &Gopher{
+	g := &Gopher{
 		x:        hitboxRadius,
 		y:        hitboxRadius,
+		maturity: middleMaturity(),
 		stepSize: Normal.step(),
 		body:     Palette[0],
 		heading:  heading,
@@ -81,6 +90,8 @@ func newGopher(chance func() float64, intn func(n int) int) *Gopher {
 		chance:   chance,
 		intn:     intn,
 	}
+	g.age = g.maturity[len(g.maturity)-1]
+	return g
 }
 
 // Position devolve o centro do corpo do Gopher.
@@ -105,8 +116,9 @@ const spawnAttempts = 100
 // Deve ser chamado depois de Resize, que informa o tamanho da tela.
 func (g *Gopher) Spawn(others ...*Gopher) {
 	for range spawnAttempts {
-		g.x = hitboxRadius + g.chance()*(g.width-2*hitboxRadius)
-		g.y = hitboxRadius + g.chance()*(g.height-2*hitboxRadius)
+		r := g.hitbox()
+		g.x = r + g.chance()*(g.width-2*r)
+		g.y = r + g.chance()*(g.height-2*r)
 		g.keepInside() // necessário quando a tela é pequena demais
 		if !g.overlapsAny(others) {
 			break
@@ -118,7 +130,7 @@ func (g *Gopher) Spawn(others ...*Gopher) {
 // overlapsAny informa se a hit box de g se sobrepõe à de algum Gopher em others.
 func (g *Gopher) overlapsAny(others []*Gopher) bool {
 	for _, o := range others {
-		if o != g && math.Hypot(g.x-o.x, g.y-o.y) < collisionDistance {
+		if o != g && math.Hypot(g.x-o.x, g.y-o.y) < g.touchDistance(o) {
 			return true
 		}
 	}
@@ -130,7 +142,9 @@ func (g *Gopher) overlapsAny(others []*Gopher) bool {
 // ao sentido do movimento. others são os Gophers com quem ele pode colidir; o
 // próprio Gopher pode estar entre eles, e é ignorado.
 func (g *Gopher) Update(others ...*Gopher) {
+	g.age++
 	g.ticks++
+	g.keepInside() // a hit box cresce, e o Gopher não pode ficar com ela fora da tela
 	if g.ticks%walkEveryTicks == 0 {
 		g.move(others...)
 	}
@@ -187,17 +201,18 @@ func (g *Gopher) turnTowardsHeading() {
 }
 
 func (g *Gopher) fitsX(x float64) bool {
-	return x-hitboxRadius >= 0 && x+hitboxRadius <= g.width
+	return x-g.hitbox() >= 0 && x+g.hitbox() <= g.width
 }
 
 func (g *Gopher) fitsY(y float64) bool {
-	return y-hitboxRadius >= 0 && y+hitboxRadius <= g.height
+	return y-g.hitbox() >= 0 && y+g.hitbox() <= g.height
 }
 
 // keepInside traz a posição para dentro da tela, caso tenha saído.
 func (g *Gopher) keepInside() {
-	g.x = clamp(g.x, hitboxRadius, g.width-hitboxRadius)
-	g.y = clamp(g.y, hitboxRadius, g.height-hitboxRadius)
+	r := g.hitbox()
+	g.x = clamp(g.x, r, g.width-r)
+	g.y = clamp(g.y, r, g.height-r)
 }
 
 // clamp limita v ao intervalo [lo, hi]. Se hi < lo, devolve lo.
