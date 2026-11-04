@@ -28,18 +28,18 @@ const (
 type part struct {
 	cx, cy   float32
 	rx, ry   float32
-	angle    float32 // radianos, sentido horário na tela
+	angle    float64 // graus, sentido horário na tela (mesma convenção de heading)
 	color    color.Color
 	mirrored bool // também desenha a cópia espelhada (cx e angle invertidos)
 }
 
 // parts descreve o Gopher, de trás para frente.
 var parts = []part{
-	{cx: 1.16, cy: -0.18, rx: 0.19, ry: 0.13, angle: 0.3, color: bodyColor, mirrored: true}, // orelhas
-	{cx: 0, cy: 0, rx: 1, ry: 1, angle: 0, color: bodyColor},                                // corpo
-	{cx: 0.46, cy: -0.9, rx: 0.33, ry: 0.2, angle: 0.3, color: eyeColor, mirrored: true},    // olhos
-	{cx: 0.58, cy: -1.05, rx: 0.06, ry: 0.09, angle: 0, color: pupilColor, mirrored: true},  // pupilas
-	{cx: 0, cy: -0.97, rx: 0.08, ry: 0.06, angle: 0, color: pupilColor},                     // nariz
+	{cx: 1.16, cy: -0.18, rx: 0.19, ry: 0.13, angle: 17, color: bodyColor, mirrored: true}, // orelhas
+	{cx: 0, cy: 0, rx: 1, ry: 1, angle: 0, color: bodyColor},                               // corpo
+	{cx: 0.46, cy: -0.9, rx: 0.33, ry: 0.2, angle: 17, color: eyeColor, mirrored: true},    // olhos
+	{cx: 0.58, cy: -1.05, rx: 0.06, ry: 0.09, angle: 0, color: pupilColor, mirrored: true}, // pupilas
+	{cx: 0, cy: -0.97, rx: 0.08, ry: 0.06, angle: 0, color: pupilColor},                    // nariz
 }
 
 // shapes é parts com as cópias espelhadas já expandidas, na ordem de desenho.
@@ -68,17 +68,20 @@ func expand(ps []part) []part {
 }
 
 func reach(ps []part) float32 {
-	var max float64
+	var farthest float64
 	for _, p := range ps {
 		for _, pt := range ellipsePoints(p.cx, p.cy, p.rx, p.ry, p.angle) {
-			max = math.Max(max, math.Hypot(float64(pt.x), float64(pt.y)))
+			farthest = max(farthest, math.Hypot(float64(pt.x), float64(pt.y)))
 		}
 	}
-	return float32(max)
+	return float32(farthest)
 }
 
 // spriteSize é o lado, em pixels, da imagem do Gopher: a hit box inteira.
-const spriteSize = int(2 * hitboxRadius)
+const spriteSize = 2 * hitboxRadius
+
+// spriteCenter é a coordenada, nos dois eixos, do centro do corpo no sprite.
+const spriteCenter = spriteSize / 2
 
 // spriteHeading é a direção para a qual o sprite aponta ao ser desenhado: para
 // cima, que na convenção dos ângulos (0º à direita, sentido horário) é -90º.
@@ -91,10 +94,9 @@ var sprite = sync.OnceValue(renderSprite)
 
 func renderSprite() *ebiten.Image {
 	img := ebiten.NewImage(spriteSize, spriteSize)
-	c := hitboxRadius // centro do corpo na imagem
-
 	for _, s := range shapes {
-		fillEllipse(img, c+s.cx*bodyRadius, c+s.cy*bodyRadius, s.rx*bodyRadius, s.ry*bodyRadius, s.angle, s.color)
+		fillEllipse(img, spriteCenter+s.cx*bodyRadius, spriteCenter+s.cy*bodyRadius,
+			s.rx*bodyRadius, s.ry*bodyRadius, s.angle, s.color)
 	}
 	return img
 }
@@ -102,11 +104,11 @@ func renderSprite() *ebiten.Image {
 // Draw pinta o Gopher em screen, centrado na posição atual e apontando para
 // facing. A sombra fica sempre no mesmo lado, já que a luz não gira com ele.
 func (g *Gopher) Draw(screen *ebiten.Image) {
-	vector.FillCircle(screen, g.x+shadowOffsetX, g.y+shadowOffsetY, bodyRadius, shadowColor, true)
+	vector.FillCircle(screen, float32(g.x)+shadowOffsetX, float32(g.y)+shadowOffsetY, bodyRadius, shadowColor, true)
 
 	op := &ebiten.DrawImageOptions{Filter: ebiten.FilterLinear}
-	op.GeoM.Translate(-float64(hitboxRadius), -float64(hitboxRadius)) // gira em torno do centro
-	op.GeoM.Rotate((g.facing - spriteHeading) * math.Pi / 180)
-	op.GeoM.Translate(float64(g.x), float64(g.y))
+	op.GeoM.Translate(-spriteCenter, -spriteCenter) // gira em torno do centro do corpo
+	op.GeoM.Rotate(radians(g.facing - spriteHeading))
+	op.GeoM.Translate(g.x, g.y)
 	screen.DrawImage(sprite(), op)
 }

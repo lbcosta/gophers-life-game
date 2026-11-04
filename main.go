@@ -28,8 +28,8 @@ type Game struct {
 	grass      *ebiten.Image // ladrilho da textura de grama
 	background *ebiten.Image // grama já ladrilhada e escurecida, do tamanho da tela
 
-	width, height int // tamanho da tela, informado por Layout
-	ticks         int
+	screen        image.Point // tamanho da tela, informado por Layout
+	screenChanged bool        // screen mudou e o Gopher ainda não foi avisado
 }
 
 // loadGrass decodifica a textura de grama embutida.
@@ -41,8 +41,9 @@ func loadGrass() (*ebiten.Image, error) {
 	return ebiten.NewImageFromImage(img), nil
 }
 
-// tileBackground repete tile (em ladrilhos) até cobrir size, escurecendo-o.
-func tileBackground(tile *ebiten.Image, size image.Point) *ebiten.Image {
+// tileBackground repete tile (em ladrilhos) até cobrir size, multiplicando as
+// cores por brightness.
+func tileBackground(tile *ebiten.Image, size image.Point, brightness float32) *ebiten.Image {
 	bg := ebiten.NewImage(size.X, size.Y)
 	tileSize := tile.Bounds().Size()
 
@@ -50,7 +51,7 @@ func tileBackground(tile *ebiten.Image, size image.Point) *ebiten.Image {
 		for x := 0; x < size.X; x += tileSize.X {
 			op := &ebiten.DrawImageOptions{}
 			op.GeoM.Translate(float64(x), float64(y))
-			op.ColorScale.Scale(grassBrightness, grassBrightness, grassBrightness, 1)
+			op.ColorScale.Scale(brightness, brightness, brightness, 1)
 			bg.DrawImage(tile, op)
 		}
 	}
@@ -62,7 +63,10 @@ func tileBackground(tile *ebiten.Image, size image.Point) *ebiten.Image {
 func (g *Game) drawBackground(screen *ebiten.Image) {
 	size := screen.Bounds().Size()
 	if g.background == nil || g.background.Bounds().Size() != size {
-		g.background = tileBackground(g.grass, size)
+		if g.background != nil {
+			g.background.Deallocate()
+		}
+		g.background = tileBackground(g.grass, size, grassBrightness)
 	}
 	screen.DrawImage(g.background, nil)
 }
@@ -73,20 +77,16 @@ func (g *Game) Update() error {
 		return ebiten.Termination
 	}
 
-	g.ticks++
-
 	// O tamanho da tela só é conhecido depois da primeira chamada a Layout.
-	if g.width == 0 || g.height == 0 {
+	if g.screen.X == 0 || g.screen.Y == 0 {
 		return nil
 	}
-	w, h := float32(g.width), float32(g.height)
 
-	if g.gopher == nil {
-		g.gopher = gopher.NewGopher(w, h)
-	} else {
-		g.gopher.Resize(w, h)
+	if g.screenChanged {
+		g.gopher.Resize(float64(g.screen.X), float64(g.screen.Y))
+		g.screenChanged = false
 	}
-	g.gopher.Update(g.ticks)
+	g.gopher.Update()
 
 	return nil
 }
@@ -94,17 +94,16 @@ func (g *Game) Update() error {
 // Draw roda a cada frame: só desenha.
 func (g *Game) Draw(screen *ebiten.Image) {
 	g.drawBackground(screen)
-
-	// Pode não existir ainda se Draw rodar antes do primeiro Update completo.
-	if g.gopher != nil {
-		g.gopher.Draw(screen)
-	}
+	g.gopher.Draw(screen)
 }
 
 // Layout define a resolução lógica: acompanha o tamanho da tela. Só registra
-// esse tamanho para o Update usar.
+// esse tamanho, e se ele mudou, para o Update usar.
 func (g *Game) Layout(w, h int) (int, int) {
-	g.width, g.height = w, h
+	if size := image.Pt(w, h); size != g.screen {
+		g.screen = size
+		g.screenChanged = true
+	}
 	return w, h
 }
 
@@ -117,7 +116,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := ebiten.RunGame(&Game{grass: grass}); err != nil {
+	if err := ebiten.RunGame(&Game{gopher: gopher.NewGopher(), grass: grass}); err != nil {
 		log.Fatal(err)
 	}
 }

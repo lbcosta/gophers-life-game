@@ -15,20 +15,20 @@ type point struct{ x, y float32 }
 
 // ellipsePoints devolve os vértices do polígono que aproxima uma elipse de
 // centro (cx, cy) e raios rx (horizontal) e ry (vertical), girada por angle
-// radianos (sentido horário na tela).
+// graus (sentido horário na tela).
 //
 // É a única definição do contorno de uma elipse: tanto o desenho quanto o
 // cálculo do alcance do Gopher usam estes pontos, então os dois sempre concordam.
-func ellipsePoints(cx, cy, rx, ry, angle float32) [ellipseSegments]point {
-	sin, cos := math.Sincos(float64(angle))
+func ellipsePoints(cx, cy, rx, ry float32, angle float64) [ellipseSegments]point {
+	sin, cos := math.Sincos(radians(angle))
 	sinA, cosA := float32(sin), float32(cos)
 
 	var pts [ellipseSegments]point
 	for i := range pts {
-		t := 2 * math.Pi * float64(i) / ellipseSegments
+		sinT, cosT := math.Sincos(2 * math.Pi * float64(i) / ellipseSegments)
 		// Ponto na elipse sem rotação, em relação ao centro.
-		px := rx * float32(math.Cos(t))
-		py := ry * float32(math.Sin(t))
+		px := rx * float32(cosT)
+		py := ry * float32(sinT)
 		// Rotação e translação.
 		pts[i] = point{
 			x: cx + px*cosA - py*sinA,
@@ -39,7 +39,7 @@ func ellipsePoints(cx, cy, rx, ry, angle float32) [ellipseSegments]point {
 }
 
 // fillEllipse preenche, em dst, a elipse descrita em ellipsePoints.
-func fillEllipse(dst *ebiten.Image, cx, cy, rx, ry, angle float32, clr color.Color) {
+func fillEllipse(dst *ebiten.Image, cx, cy, rx, ry float32, angle float64, clr color.Color) {
 	pts := ellipsePoints(cx, cy, rx, ry, angle)
 
 	var path vector.Path
