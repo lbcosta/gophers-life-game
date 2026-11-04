@@ -26,6 +26,7 @@ func newTestGopher(width, height, heading float64) *Gopher {
 		func() float64 { return 0.99 }, // >= turnChance: não gira
 		func(n int) int { return 0 },
 	)
+	g.satiety = math.MaxInt // os testes de movimento não querem Gophers morrendo de fome
 	g.Resize(width, height)
 	g.x, g.y = width/2, height/2
 	g.heading, g.facing = heading, heading
@@ -521,7 +522,7 @@ func TestGophersKeepApart(t *testing.T) {
 
 	minDist := math.Inf(1)
 	for tick := range 100_000 {
-		c.Update()
+		c.Update(nil)
 		for i, a := range c.gophers {
 			if !a.insideScreen() {
 				t.Fatalf("tick %d: hit box fora da tela, posição (%v, %v)", tick, a.x, a.y)
@@ -746,6 +747,7 @@ func newTestColony(n int, seed1, seed2 uint64) *Colony {
 	c := &Colony{}
 	for i := range n {
 		g := newGopher(r.Float64, r.IntN)
+		g.satiety = math.MaxInt
 		g.stepSize = Speeds[i%len(Speeds)].step()
 		c.gophers = append(c.gophers, g)
 	}
@@ -756,7 +758,7 @@ func TestColonyDoesNothingBeforeResize(t *testing.T) {
 	c := newTestColony(3, 13, 14)
 
 	for range 2 * walkEveryTicks {
-		c.Update()
+		c.Update(nil)
 	}
 
 	for i, g := range c.gophers {
@@ -979,5 +981,87 @@ func TestBabiesFitWhereAdultsDoNot(t *testing.T) {
 		if !g.insideScreen() {
 			t.Errorf("Gopher %d nasceu fora da tela, em (%v, %v)", i, g.x, g.y)
 		}
+	}
+}
+
+func TestGopherIsBornWithSatietyAndLosesOnePerHundredSteps(t *testing.T) {
+	g := newTestGopher(800, 600, 0)
+	g.satiety = initialSatiety
+	if initialSatiety != 10 || stepsPerSatiety != 100 {
+		t.Fatalf("initialSatiety = %d e stepsPerSatiety = %d, esperado 10 e 100", initialSatiety, stepsPerSatiety)
+	}
+
+	for step := 1; step <= 3*stepsPerSatiety; step++ {
+		g.move()
+		if want := initialSatiety - step/stepsPerSatiety; g.satiety != want {
+			t.Fatalf("passo %d: saciedade %d, esperado %d", step, g.satiety, want)
+		}
+	}
+}
+
+func TestGopherStarvesAndStopsMoving(t *testing.T) {
+	g := newTestGopher(800, 600, 0)
+	g.satiety = initialSatiety
+
+	for range initialSatiety * stepsPerSatiety * walkEveryTicks {
+		g.Update()
+	}
+	if g.Alive() || g.satiety != 0 {
+		t.Fatalf("saciedade %d, vivo = %v; esperado morto com 0", g.satiety, g.Alive())
+	}
+
+	x, y := g.Position()
+	for range 10 * walkEveryTicks {
+		g.Update()
+	}
+	if nx, ny := g.Position(); nx != x || ny != y || g.satiety != 0 {
+		t.Errorf("Gopher morto mudou: posição (%v, %v) -> (%v, %v), saciedade %d", x, y, nx, ny, g.satiety)
+	}
+}
+
+func TestEatAddsSatietyButNotToTheDead(t *testing.T) {
+	g := newTestGopher(800, 600, 0)
+	g.satiety = 5
+	g.Eat(2)
+	if g.satiety != 7 {
+		t.Errorf("saciedade %d depois de comer 2, esperado 7", g.satiety)
+	}
+
+	g.satiety = 0
+	g.Eat(2)
+	if g.Alive() {
+		t.Error("Gopher morto voltou a viver ao comer")
+	}
+}
+
+func TestColonyRemovesStarvedGophersAndFeedsTheRest(t *testing.T) {
+	c := newTestColony(3, 31, 32)
+	c.Resize(800, 600)
+	starving, fed := c.gophers[0], c.gophers[1]
+
+	// Os dois estão a um passo de perder 1 de saciedade. O primeiro, com só 1,
+	// morre; o segundo tem 2 e come mais 2.
+	starving.satiety, starving.steps = 1, stepsPerSatiety-1
+	fed.satiety, fed.steps = 2, stepsPerSatiety-1
+	forage := func(x, y, r float64) int {
+		if x == fed.x && y == fed.y {
+			return 2
+		}
+		return 0
+	}
+	for range walkEveryTicks {
+		c.Update(forage)
+	}
+
+	if len(c.Gophers()) != 2 {
+		t.Fatalf("%d Gophers vivos, esperado 2", len(c.Gophers()))
+	}
+	for _, g := range c.Gophers() {
+		if g == starving {
+			t.Error("o Gopher que morreu de fome continua na colônia")
+		}
+	}
+	if fed.satiety < 3 {
+		t.Errorf("o que comeu ficou com saciedade %d, esperado pelo menos 3 (2 - 1 + 2)", fed.satiety)
 	}
 }

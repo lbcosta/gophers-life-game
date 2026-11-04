@@ -8,8 +8,6 @@ import (
 	"image/color"
 	"math"
 	"math/rand/v2"
-
-	"github.com/hajimehoshi/ebiten/v2"
 )
 
 // walkEveryTicks é de quantos em quantos ticks o Gopher dá um passo.
@@ -20,6 +18,14 @@ const walkEveryTicks = 7
 // diâmetro, centrado no corpo, que contém o desenho inteiro (corpo, orelhas e
 // olhos). Antes de adulto a hit box é menor (ver hitbox).
 const hitboxRadius = 32
+
+// Saciedade. O Gopher nasce com initialSatiety e perde 1 ponto a cada
+// stepsPerSatiety passos. Quando chega a zero, ele morre. Comer devolve pontos
+// (ver Eat).
+const (
+	initialSatiety  = 10
+	stepsPerSatiety = 100
+)
 
 // Parâmetros da caminhada. Os ângulos são em graus, com 0º apontando para a
 // direita e crescendo no sentido horário na tela (o eixo Y cresce para baixo).
@@ -46,10 +52,11 @@ type Gopher struct {
 	ticks         int      // controla o ritmo dos passos; Spawn o defasa, então não serve de idade
 	age           int      // ticks vividos
 	maturity      maturity // idades em que entra em cada fase da vida
+	satiety       int      // quando chega a zero, o Gopher morre
+	steps         int      // passos dados; a cada stepsPerSatiety, perde 1 de saciedade
 
-	stepSize float64                  // pixels por passo; vem da Speed
-	body     color.RGBA               // cor do corpo e das orelhas
-	sprites  [numStages]*ebiten.Image // desenho de cada fase que tem figura, feito sob demanda
+	stepSize float64    // pixels por passo; vem da Speed
+	body     color.RGBA // cor do corpo e das orelhas
 
 	heading float64 // direção do movimento, em graus [0, 360)
 	facing  float64 // direção para a qual o desenho aponta; gira até alcançar heading
@@ -83,6 +90,7 @@ func newGopher(chance func() float64, intn func(n int) int) *Gopher {
 		x:        hitboxRadius,
 		y:        hitboxRadius,
 		maturity: middleMaturity(),
+		satiety:  initialSatiety,
 		stepSize: Normal.step(),
 		body:     Palette[0],
 		heading:  heading,
@@ -92,6 +100,28 @@ func newGopher(chance func() float64, intn func(n int) int) *Gopher {
 	}
 	g.age = g.maturity[len(g.maturity)-1]
 	return g
+}
+
+// Alive informa se o Gopher está vivo, isto é, se ainda tem saciedade.
+func (g *Gopher) Alive() bool {
+	return g.satiety > 0
+}
+
+// Satiety devolve a saciedade atual do Gopher.
+func (g *Gopher) Satiety() int {
+	return g.satiety
+}
+
+// Eat devolve ao Gopher n pontos de saciedade. Um Gopher morto não come.
+func (g *Gopher) Eat(n int) {
+	if g.Alive() {
+		g.satiety += n
+	}
+}
+
+// Radius devolve o raio da hit box do Gopher na idade atual.
+func (g *Gopher) Radius() float64 {
+	return g.hitbox()
 }
 
 // Position devolve o centro do corpo do Gopher.
@@ -139,9 +169,12 @@ func (g *Gopher) overlapsAny(others []*Gopher) bool {
 
 // Update deve ser chamado uma vez por tick do jogo. A cada walkEveryTicks
 // ticks o Gopher dá um passo, e a cada tick o desenho gira um pouco em direção
-// ao sentido do movimento. others são os Gophers com quem ele pode colidir; o
+// ao sentido do movimento. Um Gopher morto não faz nada. others são os Gophers com quem ele pode colidir; o
 // próprio Gopher pode estar entre eles, e é ignorado.
 func (g *Gopher) Update(others ...*Gopher) {
+	if !g.Alive() {
+		return
+	}
 	g.age++
 	g.ticks++
 	g.keepInside() // a hit box cresce, e o Gopher não pode ficar com ela fora da tela
@@ -187,6 +220,11 @@ func (g *Gopher) move(others ...*Gopher) {
 	g.x += dx
 	g.y += dy
 	g.keepInside() // necessário quando a tela é pequena demais para quicar
+
+	g.steps++
+	if g.steps%stepsPerSatiety == 0 {
+		g.satiety--
+	}
 }
 
 // turnTowardsHeading gira facing até turnSpeed graus, pelo caminho mais curto,

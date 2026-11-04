@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	_ "embed"
+	"embed"
 	"image"
 	"image/png"
 	"log"
@@ -10,6 +10,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"gophers-life-game/gopher"
+	"gophers-life-game/world"
 )
 
 // grassBrightness escurece a grama para os Gophers se destacarem.
@@ -17,7 +18,15 @@ import (
 const grassBrightness = 0.6
 
 // gopherCount é a quantidade de Gophers do jogo.
-const gopherCount = 5
+const gopherCount = 60
+
+// plantsPerGopher é quantas plantas o mundo tenta manter para cada Gopher.
+const plantsPerGopher = 2
+
+// plantsFS tem os sprites das plantas (assets/plants), embutidos no binário.
+//
+//go:embed assets/plants/*.png
+var plantsFS embed.FS
 
 // grassPNG é a textura de grama, embutida no binário para o jogo
 // funcionar independentemente do diretório em que for executado.
@@ -27,6 +36,9 @@ var grassPNG []byte
 
 type Game struct {
 	gophers *gopher.Colony
+	world   *world.World
+
+	prerendered bool // os sprites já foram preparados (só dá depois que o jogo roda)
 
 	grass      *ebiten.Image // ladrilho da textura de grama
 	background *ebiten.Image // grama já ladrilhada e escurecida, do tamanho da tela
@@ -80,16 +92,26 @@ func (g *Game) Update() error {
 		return ebiten.Termination
 	}
 
+	// Os sprites só podem ser desenhados com o jogo rodando, então são preparados
+	// uma única vez, no primeiro tick.
+	if !g.prerendered {
+		gopher.Prerender()
+		g.world.Prerender()
+		g.prerendered = true
+	}
+
 	// O tamanho da tela só é conhecido depois da primeira chamada a Layout.
 	if g.screen.X == 0 || g.screen.Y == 0 {
 		return nil
 	}
 
 	if g.screenChanged {
+		g.world.Resize(float64(g.screen.X), float64(g.screen.Y))
 		g.gophers.Resize(float64(g.screen.X), float64(g.screen.Y))
 		g.screenChanged = false
 	}
-	g.gophers.Update()
+	g.world.Update()
+	g.gophers.Update(g.world.Forage)
 
 	return nil
 }
@@ -97,6 +119,7 @@ func (g *Game) Update() error {
 // Draw roda a cada frame: só desenha.
 func (g *Game) Draw(screen *ebiten.Image) {
 	g.drawBackground(screen)
+	g.world.Draw(screen)
 	g.gophers.Draw(screen)
 }
 
@@ -119,7 +142,17 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := ebiten.RunGame(&Game{gophers: gopher.NewColony(gopherCount), grass: grass}); err != nil {
+	sprites, err := world.LoadSprites(plantsFS)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	game := &Game{
+		gophers: gopher.NewColony(gopherCount),
+		world:   world.New(gopherCount*plantsPerGopher, sprites),
+		grass:   grass,
+	}
+	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
 }

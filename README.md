@@ -9,6 +9,13 @@ nariz). A hit box acompanha o crescimento. A idade em que cada Gopher entra em
 cada fase é sorteada dentro de um intervalo: criança entre 10 e 20 s,
 adolescente entre 25 e 40 s e adulto entre 45 e 60 s.
 
+Pelo gramado crescem seis alimentos (batata, cenoura, rabanete, capim, trevo e
+alfafa). Cada planta passa por três fases: semente, crescendo e pronta. Passar
+por cima de uma semente não faz nada, passar por uma planta crescendo a desfaz,
+e passar por uma pronta é comê-la: batata, cenoura e rabanete dão +2 de
+saciedade, e capim, trevo e alfafa dão +1. Todo Gopher nasce com saciedade 10,
+perde 1 a cada 100 passos e morre (some) ao chegar a zero.
+
 ## Como executar
 
 ```bash
@@ -36,4 +43,10 @@ go test ./...
   - `personality.go`: velocidades, paleta de cores e criação de Gophers sorteados.
   - `colony.go`: vários Gophers na mesma tela.
   - `draw.go` e `ellipse.go`: desenho.
+- `world/`: os objetos do mundo.
+  - `plant.go`: tipos de alimento, fases de crescimento e maturidade sorteada.
+  - `world.go`: plantio, crescimento e o que acontece quando um Gopher passa por cima.
+  - `sprites.go`: carrega e pré-renderiza os sprites das plantas.
+- `cmd/genassets/`: gera os sprites das plantas. Rode `go run ./cmd/genassets` para refazê-los.
 - `assets/grass.png`: textura de grama.
+- `assets/plants/`: sprites das plantas (semente, broto e os seis alimentos).

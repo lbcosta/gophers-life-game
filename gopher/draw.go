@@ -182,6 +182,40 @@ func renderSprite(body color.RGBA, stage Stage) *ebiten.Image {
 	return img
 }
 
+// spriteKey identifica um sprite: a cor do corpo e a fase da vida.
+type spriteKey struct {
+	body  color.RGBA
+	stage Stage
+}
+
+// sprites guarda os sprites já desenhados. Gophers de mesma cor e fase usam o
+// mesmo, e Prerender os desenha todos antes do jogo precisar deles.
+var sprites = map[spriteKey]*ebiten.Image{}
+
+// figureStages são as fases que têm figura, em vez de uma bolinha.
+var figureStages = []Stage{Teen, Adult}
+
+// sprite devolve o sprite da fase stage com o corpo na cor body, desenhando-o
+// se ainda não existir.
+func sprite(body color.RGBA, stage Stage) *ebiten.Image {
+	key := spriteKey{body, stage}
+	if sprites[key] == nil {
+		sprites[key] = renderSprite(body, stage)
+	}
+	return sprites[key]
+}
+
+// Prerender desenha, uma única vez, o sprite de cada fase com figura para cada
+// cor da paleta, para que o jogo não precise desenhá-los no meio da partida.
+// Deve ser chamado com o jogo já rodando.
+func Prerender() {
+	for _, body := range Palette {
+		for _, stage := range figureStages {
+			sprite(body, stage)
+		}
+	}
+}
+
 // Draw pinta o Gopher em screen: a sombra e, por cima, o próprio Gopher. Para
 // desenhar vários Gophers sem que a sombra de um cubra outro, use Colony.
 func (g *Gopher) Draw(screen *ebiten.Image) {
@@ -206,19 +240,13 @@ func (g *Gopher) drawFigure(screen *ebiten.Image) {
 		return
 	}
 
-	// O sprite de cada fase é desenhado na primeira vez em que é preciso, já na
-	// cor do Gopher.
-	if g.sprites[stage] == nil {
-		g.sprites[stage] = renderSprite(g.body, stage)
-	}
-
 	scale := float64(size / bodyRadius)
 	op := &ebiten.DrawImageOptions{Filter: ebiten.FilterLinear}
 	op.GeoM.Translate(-spriteCenter, -spriteCenter) // gira em torno do centro do corpo
 	op.GeoM.Scale(scale, scale)
 	op.GeoM.Rotate(radians(g.facing - spriteHeading))
 	op.GeoM.Translate(g.x, g.y)
-	screen.DrawImage(g.sprites[stage], op)
+	screen.DrawImage(sprite(g.body, stage), op)
 
 	for _, h := range highlightCenters(g.facing) {
 		vector.FillCircle(screen, float32(g.x)+h.x*size, float32(g.y)+h.y*size,

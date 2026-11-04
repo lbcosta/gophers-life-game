@@ -7,6 +7,7 @@ import "github.com/hajimehoshi/ebiten/v2"
 // Ela cuida da ordem em que as coisas precisam acontecer: os Gophers só são
 // espalhados quando o tamanho da tela é conhecido (no primeiro Resize), cada um
 // nasce longe dos que já foram espalhados, e só então andam e aparecem na tela.
+// Os que morrem de fome somem dela.
 type Colony struct {
 	gophers []*Gopher
 	spawned bool // os Gophers já foram espalhados pela tela
@@ -32,15 +33,37 @@ func (c *Colony) Resize(width, height float64) {
 	}
 }
 
-// Update deve ser chamado uma vez por tick do jogo. Antes do primeiro Resize
-// não faz nada.
-func (c *Colony) Update() {
+// Forager é o que um Gopher encontra ao andar: dado o círculo que ele ocupa
+// (centro e raio), devolve quanta saciedade ele ganha com o que comeu ali.
+type Forager func(x, y, radius float64) int
+
+// Update deve ser chamado uma vez por tick do jogo. Cada Gopher anda e, se
+// forage não for nil, come o que encontra. Os que morreram de fome saem da
+// colônia. Antes do primeiro Resize não faz nada.
+func (c *Colony) Update(forage Forager) {
 	if !c.spawned {
 		return
 	}
 	for _, g := range c.gophers {
 		g.Update(c.gophers...)
+		if forage != nil && g.Alive() {
+			g.Eat(forage(g.x, g.y, g.hitbox()))
+		}
 	}
+
+	alive := c.gophers[:0]
+	for _, g := range c.gophers {
+		if g.Alive() {
+			alive = append(alive, g)
+		}
+	}
+	clear(c.gophers[len(alive):])
+	c.gophers = alive
+}
+
+// Gophers devolve os Gophers vivos da colônia.
+func (c *Colony) Gophers() []*Gopher {
+	return c.gophers
 }
 
 // Draw pinta os Gophers em screen. Todas as sombras vêm antes de todos os
