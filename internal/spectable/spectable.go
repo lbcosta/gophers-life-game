@@ -144,15 +144,49 @@ func sortedKeys(p Params) []string {
 	return keys
 }
 
+// hasSection diz se o arquivo tem a seção "## Parâmetros" como título. Uma
+// menção no meio do texto não conta, igual em Read.
+func hasSection(path string) (bool, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		if strings.TrimSpace(scanner.Text()) == sectionHeading {
+			return true, nil
+		}
+	}
+	return false, scanner.Err()
+}
+
 // Check lê cada arquivo da spec e reporta as divergências do pacote pkg como
 // falhas do teste. As chaves de files são caminhos; a mensagem usa só o nome
-// do arquivo.
+// do arquivo. Também reprova para todo .md das mesmas pastas que tem a seção
+// "## Parâmetros" e não está em files: uma tabela que nenhum teste lê nunca
+// seria conferida.
 func Check(t testing.TB, pkg string, files map[string]Params) {
 	t.Helper()
 	// Os arquivos em ordem alfabética, para as falhas saírem sempre na mesma
 	// ordem (o range de um map é aleatório).
+	//
+	// Os caminhos são comparados pela forma absoluta: Clean iguala
+	// "./docs/spec/x.md" a "docs/spec/x.md", mas não iguala um caminho
+	// absoluto a um relativo, e o mapa pode misturar as duas formas. As
+	// pastas guardadas já são absolutas, então os arquivos listados saem
+	// na mesma forma das chaves de read.
+	dirs := map[string]bool{}
+	read := map[string]bool{}
 	for _, path := range slices.Sorted(maps.Keys(files)) {
 		code := files[path]
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			t.Errorf("%v", err)
+			continue
+		}
+		dirs[filepath.Dir(abs)] = true
+		read[abs] = true
 		spec, err := Read(path)
 		if err != nil {
 			t.Errorf("%v", err)
@@ -162,4 +196,38 @@ func Check(t testing.TB, pkg string, files map[string]Params) {
 			t.Error(msg)
 		}
 	}
+	for _, dir := range sortedDirs(dirs) {
+		// ReadDir em vez de Glob: o Glob trata o caminho inteiro como padrão,
+		// e um "[", "*", "?" ou "\" no caminho do clone o faria devolver uma
+		// lista vazia, sem erro, e a conferência sumiria em silêncio.
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Errorf("%v", err)
+			continue
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
+				continue
+			}
+			path := filepath.Join(dir, entry.Name())
+			if read[path] {
+				continue
+			}
+			has, err := hasSection(path)
+			if err != nil {
+				t.Errorf("%v", err)
+			} else if has {
+				t.Errorf("%s: tem a seção %q, mas o teste do pacote %s não a lê (acrescente o arquivo ao mapa de Check)", filepath.Base(path), sectionHeading, pkg)
+			}
+		}
+	}
+}
+
+func sortedDirs(m map[string]bool) []string {
+	dirs := make([]string, 0, len(m))
+	for d := range m {
+		dirs = append(dirs, d)
+	}
+	slices.Sort(dirs)
+	return dirs
 }

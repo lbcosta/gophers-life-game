@@ -7,11 +7,14 @@ package spectable
 // Read lê a seção "## Parâmetros" de um arquivo da spec. Diff compara a tabela
 // de um arquivo com as constantes que o teste de um pacote conhece e devolve
 // uma mensagem por divergência. Check, usado pelo teste de cada pacote, lê cada
-// arquivo e reporta as divergências do pacote como falhas do teste.
+// arquivo e reporta as divergências do pacote como falhas do teste, e também
+// reprova cada arquivo da mesma pasta com a seção "## Parâmetros" que ficou
+// fora do mapa.
 
 import (
 	"fmt"
 	"maps"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -58,17 +61,26 @@ func TestReadRejectsALineWithoutTheLeadingPipe(t *testing.T) {
 	// No Markdown do GitHub, a barra do começo da linha é opcional: uma linha
 	// sem ela ainda aparece na tabela. Dentro da seção ## Parâmetros, toda
 	// linha não vazia que não começa com | é um erro, em vez de sumir da
-	// conferência em silêncio (issue #2).
+	// conferência em silêncio (achado S7 do PR #10, aprovado na issue #2).
+	//
+	// O erro precisa citar o arquivo e a linha sem barra (achado S10 da
+	// issue #25). Só olhar se houve erro deixaria passar um erro vindo de
+	// outra linha do arquivo de exemplo. O trecho conferido é "arquivo:linha",
+	// sem a pasta, para não depender de como o caminho aparece (#26).
 	tests := []struct {
-		name, file string
+		name, file, line string
 	}{
-		{"linha da tabela sem a barra do começo", "testdata/no_leading_pipe.md"},
-		{"linha de texto dentro da seção", "testdata/text_in_section.md"},
+		{"linha da tabela sem a barra do começo", "testdata/no_leading_pipe.md", "no_leading_pipe.md:8"},
+		{"linha de texto dentro da seção", "testdata/text_in_section.md", "text_in_section.md:9"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := Read(tt.file); err == nil {
-				t.Errorf("Read(%q) aceitou uma linha sem | no começo dentro da seção, esperado um erro", tt.file)
+			_, err := Read(tt.file)
+			if err == nil {
+				t.Fatalf("Read(%q) aceitou uma linha sem | no começo dentro da seção, esperado um erro", tt.file)
+			}
+			if !strings.Contains(err.Error(), tt.line) {
+				t.Errorf("Read(%q) devolveu o erro %q, esperado um erro citando %s", tt.file, err, tt.line)
 			}
 		})
 	}
@@ -174,12 +186,12 @@ func TestDiffReportsAParameterTheTestDoesNotKnow(t *testing.T) {
 	spec := Params{"gopher.hungryAt": 3, "gopher.sleepChance": 0.1}
 	code := Params{"gopher.hungryAt": 3}
 
+	// A mensagem inteira, como em TestDiffReportsAValueThatDiffers (achado S5
+	// da issue #25).
+	want := "gophers.md: gopher.sleepChance: a tabela cita um parâmetro que o teste não conhece"
 	got := Diff("gophers.md", "gopher", spec, code)
-	if len(got) != 1 {
-		t.Fatalf("Diff = %q, esperada uma mensagem sobre gopher.sleepChance", got)
-	}
-	if !strings.Contains(got[0], "gophers.md") || !strings.Contains(got[0], "gopher.sleepChance") {
-		t.Errorf("Diff = %q, esperado citar gophers.md e gopher.sleepChance", got[0])
+	if len(got) != 1 || got[0] != want {
+		t.Errorf("Diff = %q, esperado [%q]", got, want)
 	}
 }
 
@@ -187,12 +199,12 @@ func TestDiffReportsAKnownParameterMissingFromTheTable(t *testing.T) {
 	spec := Params{"gopher.hungryAt": 3}
 	code := Params{"gopher.hungryAt": 3, "gopher.initialSatiety": 10}
 
+	// A mensagem inteira, como em TestDiffReportsAValueThatDiffers (achado S5
+	// da issue #25).
+	want := "gophers.md: gopher.initialSatiety: o parâmetro falta na tabela"
 	got := Diff("gophers.md", "gopher", spec, code)
-	if len(got) != 1 {
-		t.Fatalf("Diff = %q, esperada uma mensagem sobre gopher.initialSatiety", got)
-	}
-	if !strings.Contains(got[0], "gophers.md") || !strings.Contains(got[0], "gopher.initialSatiety") {
-		t.Errorf("Diff = %q, esperado citar gophers.md e gopher.initialSatiety", got[0])
+	if len(got) != 1 || got[0] != want {
+		t.Errorf("Diff = %q, esperado [%q]", got, want)
 	}
 }
 
@@ -246,9 +258,12 @@ func (r *recordingTB) cites(s string) bool {
 
 func TestCheckPassesATableThatMatchesTheCode(t *testing.T) {
 	// Controle do recordingTB: uma tabela igual ao código não reprova nada.
+	// O arquivo fica sozinho numa pasta porque Check também reprova as
+	// tabelas da mesma pasta que ficaram fora do mapa (docs/spec/README.md,
+	// "Tabelas de parâmetros"), e testdata/ tem várias.
 	rec := &recordingTB{TB: t}
 	Check(rec, "gopher", map[string]Params{
-		"testdata/valid.md": {
+		"testdata/covered/valid.md": {
 			"gopher.stepsPerSatiety":             1000,
 			"gopher.speedSteps[Slow]":            0.25,
 			"gopher.maturityRanges[Child-1].min": 600,
@@ -332,9 +347,155 @@ func TestCheckFailsOnAnEmptyParameterCell(t *testing.T) {
 		}
 		rec := &recordingTB{TB: t}
 		Check(rec, pkg, map[string]Params{"testdata/empty_parameter.md": code})
-		if !rec.Failed() {
-			t.Errorf("Check(%q) aceitou uma linha com a célula de parâmetro vazia, esperado reprovar o teste", pkg)
+		// A falha precisa citar a linha 8, a da célula vazia (achado S8 da
+		// issue #25): só olhar se o teste reprovou deixaria passar uma falha
+		// vinda de outro defeito do arquivo de exemplo. O trecho conferido é
+		// "arquivo:linha", sem a pasta, para não depender de como o caminho
+		// aparece (#26).
+		if !rec.cites("empty_parameter.md:8") {
+			t.Errorf("Check(%q) com a célula de parâmetro vazia: falhas %q, esperada uma falha citando empty_parameter.md:8", pkg, rec.failures)
 		}
+	}
+}
+
+func TestCheckFailsOnATableNoTestReads(t *testing.T) {
+	// docs/spec/README.md, "Tabelas de parâmetros": todo arquivo de
+	// docs/spec/ com a seção ## Parâmetros precisa estar no teste de cada
+	// pacote, e uma tabela que nenhum teste lê faz o teste falhar (achado S6
+	// da issue #25). Em testdata/uncovered/, cited.md e forgotten.md têm a
+	// seção, e o mapa só traz cited.md.
+	for _, pkg := range []string{"main", "game", "gopher", "world", "logs"} {
+		// cited.md só tem gopher.hungryAt, que o teste do pacote gopher
+		// conhece: a tabela lida está certa, e o único defeito é a outra.
+		code := Params{}
+		if pkg == "gopher" {
+			code["gopher.hungryAt"] = 3
+		}
+		rec := &recordingTB{TB: t}
+		Check(rec, pkg, map[string]Params{"testdata/uncovered/cited.md": code})
+		if !rec.cites("forgotten.md") {
+			t.Errorf("Check(%q) sem forgotten.md no mapa: falhas %q, esperada uma falha citando forgotten.md", pkg, rec.failures)
+		}
+	}
+}
+
+func TestCheckFailsOnATableNoTestReadsInAFolderWithBracketsInItsName(t *testing.T) {
+	// docs/spec/README.md, "Tabelas de parâmetros": uma tabela que nenhum
+	// teste lê faz o teste falhar, seja qual for o nome da pasta. Colchetes
+	// podem aparecer no caminho do clone, e a conferência não pode sumir em
+	// silêncio por causa deles (achado S-5 da revisão do PR #35). Em
+	// testdata/uncovered[brackets]/, cited.md e forgotten.md têm a seção, e o
+	// mapa só traz cited.md, pelo caminho relativo ou pelo absoluto.
+	cited := "testdata/uncovered[brackets]/cited.md"
+	abs, err := filepath.Abs(cited)
+	if err != nil {
+		t.Fatalf("filepath.Abs devolveu erro %v", err)
+	}
+	tests := []struct {
+		name, key string
+	}{
+		{"caminho relativo", cited},
+		{"caminho absoluto", abs},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// cited.md só tem gopher.hungryAt, que o teste do pacote gopher
+			// conhece: a tabela lida está certa, e o único defeito é a outra.
+			rec := &recordingTB{TB: t}
+			Check(rec, "gopher", map[string]Params{tt.key: {"gopher.hungryAt": 3}})
+			if !rec.cites("forgotten.md") {
+				t.Errorf("Check com a chave %q, sem forgotten.md no mapa: falhas %q, esperada uma falha citando forgotten.md", tt.key, rec.failures)
+			}
+		})
+	}
+}
+
+func TestCheckAcceptsAMapKeyThatIsNotACleanPath(t *testing.T) {
+	// docs/spec/README.md, "Tabelas de parâmetros": a regra reprova a tabela
+	// que nenhum teste lê, não a que está no mapa. Um caminho escrito de outro
+	// jeito, como "./testdata/covered/valid.md", aponta para o mesmo arquivo
+	// e conta como lido (achado S-1 da revisão do PR #35). testdata/covered/
+	// só tem valid.md, então nada mais pode reprovar o teste.
+	tests := []struct {
+		name, file string
+	}{
+		{"com ./ na frente", "./testdata/covered/valid.md"},
+		{"com barra dupla", "testdata//covered/valid.md"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := &recordingTB{TB: t}
+			Check(rec, "gopher", map[string]Params{
+				tt.file: {
+					"gopher.stepsPerSatiety":             1000,
+					"gopher.speedSteps[Slow]":            0.25,
+					"gopher.maturityRanges[Child-1].min": 600,
+				},
+			})
+			if rec.Failed() {
+				t.Errorf("Check com a chave %q: falhas %q, esperado nenhuma falha", tt.file, rec.failures)
+			}
+		})
+	}
+}
+
+func TestCheckAcceptsAbsoluteAndRelativeMapKeysTogether(t *testing.T) {
+	// docs/spec/README.md, "Tabelas de parâmetros": a regra reprova a tabela
+	// que nenhum teste lê, não a que está no mapa. Um caminho absoluto aponta
+	// para o mesmo arquivo que o relativo e conta como lido, mesmo quando o
+	// mapa mistura as duas formas (achado S-4 da revisão do PR #35). Em
+	// testdata/uncovered/, cited.md e forgotten.md têm a seção e os dois estão
+	// no mapa, então nada pode reprovar o teste.
+	cited, err := filepath.Abs("testdata/uncovered/cited.md")
+	if err != nil {
+		t.Fatalf("filepath.Abs devolveu erro %v", err)
+	}
+	forgotten, err := filepath.Abs("testdata/uncovered/forgotten.md")
+	if err != nil {
+		t.Fatalf("filepath.Abs devolveu erro %v", err)
+	}
+	citedCode := Params{"gopher.hungryAt": 3}
+	forgottenCode := Params{"gopher.turnChance": 0.15}
+
+	tests := []struct {
+		name  string
+		files map[string]Params
+	}{
+		{"cited.md relativo e forgotten.md absoluto", map[string]Params{
+			"testdata/uncovered/cited.md": citedCode,
+			forgotten:                     forgottenCode,
+		}},
+		{"cited.md absoluto e forgotten.md relativo", map[string]Params{
+			cited:                             citedCode,
+			"testdata/uncovered/forgotten.md": forgottenCode,
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := &recordingTB{TB: t}
+			Check(rec, "gopher", tt.files)
+			if rec.Failed() {
+				t.Errorf("Check com as chaves %q: falhas %q, esperado nenhuma falha", slices.Sorted(maps.Keys(tt.files)), rec.failures)
+			}
+		})
+	}
+}
+
+func TestCheckIgnoresAFileWithoutTheParametersSection(t *testing.T) {
+	// A regra vale para os arquivos com a seção ## Parâmetros. Um arquivo que
+	// só cita a seção no meio do texto, como o docs/spec/README.md, não tem
+	// tabela para ler e não reprova o teste. Em testdata/prose_mention/,
+	// valid.md está no mapa e notes.md é esse arquivo.
+	rec := &recordingTB{TB: t}
+	Check(rec, "gopher", map[string]Params{
+		"testdata/prose_mention/valid.md": {
+			"gopher.stepsPerSatiety":             1000,
+			"gopher.speedSteps[Slow]":            0.25,
+			"gopher.maturityRanges[Child-1].min": 600,
+		},
+	})
+	if rec.Failed() {
+		t.Errorf("Check reprovou um arquivo sem a seção ## Parâmetros: %q, esperado nenhuma falha", rec.failures)
 	}
 }
 
@@ -343,9 +504,11 @@ func TestCheckReportsFailuresInAlphabeticalOrderOfFiles(t *testing.T) {
 	// arquivos em ordem alfabética. Os dois arquivos dizem gopher.hungryAt 3,
 	// e o código diz 4, então cada um gera uma falha. Uma única chamada
 	// poderia acertar a ordem por sorte, por isso o teste repete a conferência.
+	// Os arquivos ficam sozinhos em testdata/ordered/ porque Check também
+	// reprova as tabelas da mesma pasta que ficaram fora do mapa.
 	files := map[string]Params{
-		"testdata/b_diverges.md": {"gopher.hungryAt": 4},
-		"testdata/a_diverges.md": {"gopher.hungryAt": 4},
+		"testdata/ordered/b_diverges.md": {"gopher.hungryAt": 4},
+		"testdata/ordered/a_diverges.md": {"gopher.hungryAt": 4},
 	}
 	want := []string{"a_diverges.md: ", "b_diverges.md: "}
 	for range 50 {
@@ -368,9 +531,11 @@ func TestCheckCitesTheSpecFileByNameInEveryFailure(t *testing.T) {
 	// arquivo do mesmo jeito, seja qual for o caminho que o teste do pacote
 	// passou: o pacote main passa docs/spec/..., e os outros, ../docs/spec/...
 	// Em not_a_number.md, o valor fora do formato está na linha 8; em
-	// a_diverges.md, a spec diz gopher.hungryAt 3, e o código diz 4.
+	// a_diverges.md, a spec diz gopher.hungryAt 3, e o código diz 4. Os dois
+	// ficam sozinhos em testdata/named/ porque Check também reprova as tabelas
+	// da mesma pasta que ficaram fora do mapa.
 	want := []string{"a_diverges.md: gopher.hungryAt: ", "not_a_number.md:8: "}
-	for _, dir := range []string{"testdata/", "../spectable/testdata/"} {
+	for _, dir := range []string{"testdata/named/", "../spectable/testdata/named/"} {
 		t.Run(dir, func(t *testing.T) {
 			rec := &recordingTB{TB: t}
 			Check(rec, "gopher", map[string]Params{
