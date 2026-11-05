@@ -149,6 +149,16 @@ func (r *recordingTB) Fatalf(f string, a ...any)  { r.Errorf(f, a...) }
 func (r *recordingTB) Log(args ...any)            {}
 func (r *recordingTB) Logf(f string, args ...any) {}
 
+// cites diz se alguma falha registrada menciona s.
+func (r *recordingTB) cites(s string) bool {
+	for _, f := range r.failures {
+		if strings.Contains(f, s) {
+			return true
+		}
+	}
+	return false
+}
+
 func TestCheckPassesATableThatMatchesTheCode(t *testing.T) {
 	// Controle do recordingTB: uma tabela igual ao código não reprova nada.
 	rec := &recordingTB{TB: t}
@@ -188,10 +198,57 @@ func TestCheckFailsOnAParameterWithoutAKnownPackage(t *testing.T) {
 				}
 				rec := &recordingTB{TB: t}
 				Check(rec, pkg, map[string]Params{tt.file: code})
-				if !rec.Failed() {
-					t.Errorf("Check(%q) aceitou a linha %s, esperado reprovar o teste", pkg, tt.param)
+				// Conferir que a falha cita tt.param garante que o teste
+				// reprova por causa dessa linha, e não por outro defeito do
+				// arquivo de exemplo.
+				if !rec.cites(tt.param) {
+					t.Errorf("Check(%q) com a linha %s: falhas %q, esperada uma falha citando %s", pkg, tt.param, rec.failures, tt.param)
 				}
 			}
 		})
+	}
+}
+
+func TestCheckFailsOnARepeatedParameter(t *testing.T) {
+	// Critério de aceite 1 da issue #2: o teste falha quando um valor da
+	// tabela difere da constante. Com gopher.hungryAt duas vezes, uma com o
+	// valor do código (3) e outra com 99, a tabela mostra um valor diferente
+	// do código, seja qual for a linha que aparece primeiro.
+	tests := []struct {
+		name, file string
+	}{
+		{"valor errado na primeira linha", "testdata/duplicate_wrong_first.md"},
+		{"valor errado na última linha", "testdata/duplicate_wrong_last.md"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := &recordingTB{TB: t}
+			Check(rec, "gopher", map[string]Params{
+				tt.file: {"gopher.hungryAt": 3},
+			})
+			if !rec.cites("gopher.hungryAt") {
+				t.Errorf("Check com gopher.hungryAt repetido: falhas %q, esperada uma falha citando gopher.hungryAt", rec.failures)
+			}
+		})
+	}
+}
+
+func TestCheckFailsOnAnEmptyParameterCell(t *testing.T) {
+	// docs/spec/README.md, "Tabelas de parâmetros": o Parâmetro é a expressão
+	// Go entre crases, com o pacote na frente. Uma linha com a célula de
+	// parâmetro vazia não é de nenhum pacote, então precisa reprovar o teste
+	// de qualquer um dos quatro, em vez de sumir em silêncio.
+	for _, pkg := range []string{"main", "gopher", "world", "logs"} {
+		// O arquivo também tem gopher.hungryAt, que o teste do pacote
+		// gopher conhece: a única linha errada é a de parâmetro vazio.
+		code := Params{}
+		if pkg == "gopher" {
+			code["gopher.hungryAt"] = 3
+		}
+		rec := &recordingTB{TB: t}
+		Check(rec, pkg, map[string]Params{"testdata/empty_parameter.md": code})
+		if !rec.Failed() {
+			t.Errorf("Check(%q) aceitou uma linha com a célula de parâmetro vazia, esperado reprovar o teste", pkg)
+		}
 	}
 }
