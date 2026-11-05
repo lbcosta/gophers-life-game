@@ -134,11 +134,19 @@ func (g *Gopher) Satiety() int {
 	return g.satiety
 }
 
+// Room devolve a Folga do Gopher: quanto falta para a saciedade chegar a
+// maxSatiety (GOP-28). É zero quando ele está Cheio, e também se a saciedade
+// passar do teto, o que só acontece em testes.
+func (g *Gopher) Room() int {
+	return max(maxSatiety-g.satiety, 0)
+}
+
 // Eat devolve ao Gopher n pontos de saciedade, sem passar de maxSatiety: o que
-// sobra se perde. Um Gopher morto não come.
+// sobra se perde. Comer nunca tira saciedade, nem a que já passa do teto (só
+// possível em testes). Um Gopher morto não come.
 func (g *Gopher) Eat(n int) {
 	if g.Alive() {
-		g.satiety = min(g.satiety+n, maxSatiety)
+		g.satiety += min(n, g.Room())
 	}
 }
 
