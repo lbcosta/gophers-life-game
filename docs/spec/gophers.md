@@ -35,7 +35,7 @@
 
 ## Fases da vida e tamanho
 
-- **GOP-22** — As fases da vida são bebê, criança, adolescente e adulto, nessa ordem, e começam nas Idades da Maturidade (GOP-07). Adulto é a última fase, e não há morte por velhice.
+- **GOP-22** — As Fases da vida são bebê, criança, adolescente e adulto, nessa ordem, e começam nas Idades da Maturidade (GOP-07). Adulto é a última fase, e não há morte por velhice.
 - **GOP-23** — Bebê e criança são uma bolinha da cor do corpo. O adolescente ganha olhos com pupilas, e o adulto tem a forma completa, com orelhas e nariz.
 - **GOP-24** — O raio do corpo cresce em linha reta com a Idade: `gopher.babySize` ao nascer, `gopher.childSize` ao virar criança, `gopher.teenSize` ao virar adolescente e o raio adulto ao virar adulto. Depois disso não muda mais.
 - **GOP-25** — A Hit box do bebê, da criança e do adolescente é o menor círculo, centrado no corpo, que contém as partes do desenho que já apareceram, no tamanho atual do corpo. A do adulto tem raio `gopher.hitboxRadius`, e o desenho adulto é dimensionado para caber exatamente nela. Por isso a Hit box cresce com o corpo e dá um pequeno salto quando os olhos e, depois, as orelhas e o nariz aparecem.
@@ -43,7 +43,7 @@
 
 ## Saciedade, Fome e morte
 
-- **GOP-27** — O Gopher perde 1 ponto de Saciedade a cada `gopher.stepsPerSatiety` Passos, seja qual for a Velocidade ou a fase da vida. O primeiro ponto cai depois do número de Passos sorteado em GOP-10.
+- **GOP-27** — O Gopher perde 1 ponto de Saciedade a cada `gopher.stepsPerSatiety` Passos, seja qual for a Velocidade ou a Fase da vida. O primeiro ponto cai depois do número de Passos sorteado em GOP-10.
 - **GOP-28** — A Saciedade tem teto `gopher.maxSatiety`. Comer nunca a deixa acima dele: o que passar do teto se perde.
 - **GOP-29** — Comer soma à Saciedade o valor de cada Planta pronta comida (PLA-08), sem passar do teto (GOP-28). Um Gopher morto não come.
 - **GOP-34** — Um Gopher com a Saciedade no teto está Cheio e não come: as Plantas prontas sob ele continuam no Mundo. As Plantas crescendo continuam sendo pisoteadas.
