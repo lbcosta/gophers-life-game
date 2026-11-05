@@ -2,7 +2,7 @@
 
 ## Metas
 
-- **DES-01** — Com `gopher.MaxGophers` Gophers adultos, o jogo mantém 60 FPS e 60 TPS na GPU (no WSL, com `GALLIUM_DRIVER=d3d12`). Referência: 174 FPS sem vsync, a 1600×900, com 1000 adultos (04/11/2026).
+- **DES-01** — Com `gopher.MaxGophers` Gophers adultos, o jogo mantém 60 FPS e 60 TPS na GPU (no WSL, com `GALLIUM_DRIVER=d3d12`). Referência: cerca de 155 FPS sem vsync, a 1600×900, com 1000 adultos, medidos pelo harness com 3700 Ticks adiantados e 8 s de medida (05/11/2026).
 - **DES-02** — Um Tick da Colônia com 1000 adultos se esbarrando fica muito abaixo dos 16,7 ms que cada Tick tem. Referência: o `BenchmarkColonyUpdate` mede cerca de 1,06 ms num i5-10300H (04/11/2026).
 - **DES-03** — O Tick da Colônia e a Busca por comida não alocam memória: os benchmarks medem 0 alocações por operação. O desenho evita toda alocação que o código controla a cada Frame (listas novas, fontes recriadas, cores convertidas para `color.Color`). Em 04/11/2026, com 60 adultos, eram cerca de 115 alocações por Frame sem Seleção, quase todas dentro da Ebitengine.
 
@@ -15,4 +15,4 @@
 ## Como medir
 
 - **DES-07** — Toda mudança no caminho quente (o Update da Colônia e do Mundo, ou o desenho) é medida antes e depois, com `make bench` e com o harness, e os números vão para o PR.
-- **DES-08** — Medidas de FPS no WSL só valem na GPU. Sem `GALLIUM_DRIVER=d3d12`, o Mesa desenha com a CPU (llvmpipe), e a medida é da CPU, não do jogo: 27 contra 174 FPS no cenário de DES-01. O `make run` e o F5 do VS Code já definem a variável.
+- **DES-08** — Medidas de FPS no WSL só valem na GPU. Sem `GALLIUM_DRIVER=d3d12`, o Mesa desenha com a CPU (llvmpipe), e a medida é da CPU, não do jogo, e fica muito abaixo da referência de DES-01. O `make run` e o F5 do VS Code já definem a variável, e o harness avisa quando ela falta.
