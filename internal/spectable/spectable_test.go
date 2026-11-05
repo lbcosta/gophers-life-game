@@ -14,6 +14,7 @@ package spectable
 import (
 	"fmt"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -256,14 +257,49 @@ func (r *recordingTB) cites(s string) bool {
 	return false
 }
 
+// mount monta, numa pasta temporária chamada name, só os arquivos de files,
+// que liga o nome de cada arquivo na pasta ao exemplo de testdata/ copiado
+// para ele. Check também reprova as tabelas da mesma pasta que ficaram fora
+// do mapa (docs/spec/README.md, "Tabelas de parâmetros"), e testdata/ tem
+// várias: por isso os testes de Check que precisam de uma pasta só com certos
+// arquivos a montam na hora, em vez de guardar cópias dos exemplos (P-3 da
+// issue #41). Devolve o caminho da pasta relativo à pasta do pacote, onde o
+// teste roda, e o absoluto.
+func mount(t *testing.T, name string, files map[string]string) (rel, abs string) {
+	t.Helper()
+	abs = filepath.Join(t.TempDir(), name)
+	if err := os.Mkdir(abs, 0o755); err != nil {
+		t.Fatalf("os.Mkdir(%q) devolveu erro %v", abs, err)
+	}
+	for file, example := range files {
+		data, err := os.ReadFile(filepath.Join("testdata", example))
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) devolveu erro %v", example, err)
+		}
+		if err := os.WriteFile(filepath.Join(abs, file), data, 0o644); err != nil {
+			t.Fatalf("os.WriteFile(%q) devolveu erro %v", file, err)
+		}
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("os.Getwd devolveu erro %v", err)
+	}
+	rel, err = filepath.Rel(wd, abs)
+	if err != nil {
+		t.Fatalf("filepath.Rel(%q, %q) devolveu erro %v", wd, abs, err)
+	}
+	return rel, abs
+}
+
 func TestCheckPassesATableThatMatchesTheCode(t *testing.T) {
 	// Controle do recordingTB: uma tabela igual ao código não reprova nada.
 	// O arquivo fica sozinho numa pasta porque Check também reprova as
 	// tabelas da mesma pasta que ficaram fora do mapa (docs/spec/README.md,
 	// "Tabelas de parâmetros"), e testdata/ tem várias.
+	dir, _ := mount(t, "covered", map[string]string{"valid.md": "valid.md"})
 	rec := &recordingTB{TB: t}
 	Check(rec, "gopher", map[string]Params{
-		"testdata/covered/valid.md": {
+		filepath.Join(dir, "valid.md"): {
 			"gopher.stepsPerSatiety":             1000,
 			"gopher.speedSteps[Slow]":            0.25,
 			"gopher.maturityRanges[Child-1].min": 600,
@@ -362,8 +398,12 @@ func TestCheckFailsOnATableNoTestReads(t *testing.T) {
 	// docs/spec/README.md, "Tabelas de parâmetros": todo arquivo de
 	// docs/spec/ com a seção ## Parâmetros precisa estar no teste de cada
 	// pacote, e uma tabela que nenhum teste lê faz o teste falhar (achado S6
-	// da issue #25). Em testdata/uncovered/, cited.md e forgotten.md têm a
-	// seção, e o mapa só traz cited.md.
+	// da issue #25). Na pasta montada, cited.md e forgotten.md têm a seção, e
+	// o mapa só traz cited.md.
+	dir, _ := mount(t, "uncovered", map[string]string{
+		"cited.md":     "hungry_at.md",
+		"forgotten.md": "turn_chance.md",
+	})
 	for _, pkg := range []string{"main", "game", "gopher", "world", "logs"} {
 		// cited.md só tem gopher.hungryAt, que o teste do pacote gopher
 		// conhece: a tabela lida está certa, e o único defeito é a outra.
@@ -372,7 +412,7 @@ func TestCheckFailsOnATableNoTestReads(t *testing.T) {
 			code["gopher.hungryAt"] = 3
 		}
 		rec := &recordingTB{TB: t}
-		Check(rec, pkg, map[string]Params{"testdata/uncovered/cited.md": code})
+		Check(rec, pkg, map[string]Params{filepath.Join(dir, "cited.md"): code})
 		if !rec.cites("forgotten.md") {
 			t.Errorf("Check(%q) sem forgotten.md no mapa: falhas %q, esperada uma falha citando forgotten.md", pkg, rec.failures)
 		}
@@ -383,19 +423,18 @@ func TestCheckFailsOnATableNoTestReadsInAFolderWithBracketsInItsName(t *testing.
 	// docs/spec/README.md, "Tabelas de parâmetros": uma tabela que nenhum
 	// teste lê faz o teste falhar, seja qual for o nome da pasta. Colchetes
 	// podem aparecer no caminho do clone, e a conferência não pode sumir em
-	// silêncio por causa deles (achado S-5 da revisão do PR #35). Em
-	// testdata/uncovered[brackets]/, cited.md e forgotten.md têm a seção, e o
+	// silêncio por causa deles (achado S-5 da revisão do PR #35). Na pasta
+	// montada, uncovered[brackets]/, cited.md e forgotten.md têm a seção, e o
 	// mapa só traz cited.md, pelo caminho relativo ou pelo absoluto.
-	cited := "testdata/uncovered[brackets]/cited.md"
-	abs, err := filepath.Abs(cited)
-	if err != nil {
-		t.Fatalf("filepath.Abs devolveu erro %v", err)
-	}
+	rel, abs := mount(t, "uncovered[brackets]", map[string]string{
+		"cited.md":     "hungry_at.md",
+		"forgotten.md": "turn_chance.md",
+	})
 	tests := []struct {
 		name, key string
 	}{
-		{"caminho relativo", cited},
-		{"caminho absoluto", abs},
+		{"caminho relativo", filepath.Join(rel, "cited.md")},
+		{"caminho absoluto", filepath.Join(abs, "cited.md")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -406,6 +445,12 @@ func TestCheckFailsOnATableNoTestReadsInAFolderWithBracketsInItsName(t *testing.
 			if !rec.cites("forgotten.md") {
 				t.Errorf("Check com a chave %q, sem forgotten.md no mapa: falhas %q, esperada uma falha citando forgotten.md", tt.key, rec.failures)
 			}
+			// cited.md está no mapa e a tabela dele bate com o código: os
+			// colchetes não podem fazer Check reprová-lo como uma tabela que
+			// nenhum teste lê (T-1 da issue #41).
+			if rec.cites("cited.md") {
+				t.Errorf("Check com a chave %q: falhas %q, esperado nenhuma falha citando cited.md", tt.key, rec.failures)
+			}
 		})
 	}
 }
@@ -413,14 +458,15 @@ func TestCheckFailsOnATableNoTestReadsInAFolderWithBracketsInItsName(t *testing.
 func TestCheckAcceptsAMapKeyThatIsNotACleanPath(t *testing.T) {
 	// docs/spec/README.md, "Tabelas de parâmetros": a regra reprova a tabela
 	// que nenhum teste lê, não a que está no mapa. Um caminho escrito de outro
-	// jeito, como "./testdata/covered/valid.md", aponta para o mesmo arquivo
-	// e conta como lido (achado S-1 da revisão do PR #35). testdata/covered/
-	// só tem valid.md, então nada mais pode reprovar o teste.
+	// jeito, como "./pasta/valid.md", aponta para o mesmo arquivo e conta
+	// como lido (achado S-1 da revisão do PR #35). A pasta montada só tem
+	// valid.md, então nada mais pode reprovar o teste.
+	dir, _ := mount(t, "covered", map[string]string{"valid.md": "valid.md"})
 	tests := []struct {
 		name, file string
 	}{
-		{"com ./ na frente", "./testdata/covered/valid.md"},
-		{"com barra dupla", "testdata//covered/valid.md"},
+		{"com ./ na frente", "./" + dir + "/valid.md"},
+		{"com barra dupla", dir + "//valid.md"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -443,17 +489,13 @@ func TestCheckAcceptsAbsoluteAndRelativeMapKeysTogether(t *testing.T) {
 	// docs/spec/README.md, "Tabelas de parâmetros": a regra reprova a tabela
 	// que nenhum teste lê, não a que está no mapa. Um caminho absoluto aponta
 	// para o mesmo arquivo que o relativo e conta como lido, mesmo quando o
-	// mapa mistura as duas formas (achado S-4 da revisão do PR #35). Em
-	// testdata/uncovered/, cited.md e forgotten.md têm a seção e os dois estão
-	// no mapa, então nada pode reprovar o teste.
-	cited, err := filepath.Abs("testdata/uncovered/cited.md")
-	if err != nil {
-		t.Fatalf("filepath.Abs devolveu erro %v", err)
-	}
-	forgotten, err := filepath.Abs("testdata/uncovered/forgotten.md")
-	if err != nil {
-		t.Fatalf("filepath.Abs devolveu erro %v", err)
-	}
+	// mapa mistura as duas formas (achado S-4 da revisão do PR #35). Na pasta
+	// montada, cited.md e forgotten.md têm a seção e os dois estão no mapa,
+	// então nada pode reprovar o teste.
+	rel, abs := mount(t, "uncovered", map[string]string{
+		"cited.md":     "hungry_at.md",
+		"forgotten.md": "turn_chance.md",
+	})
 	citedCode := Params{"gopher.hungryAt": 3}
 	forgottenCode := Params{"gopher.turnChance": 0.15}
 
@@ -462,12 +504,12 @@ func TestCheckAcceptsAbsoluteAndRelativeMapKeysTogether(t *testing.T) {
 		files map[string]Params
 	}{
 		{"cited.md relativo e forgotten.md absoluto", map[string]Params{
-			"testdata/uncovered/cited.md": citedCode,
-			forgotten:                     forgottenCode,
+			filepath.Join(rel, "cited.md"):     citedCode,
+			filepath.Join(abs, "forgotten.md"): forgottenCode,
 		}},
 		{"cited.md absoluto e forgotten.md relativo", map[string]Params{
-			cited:                             citedCode,
-			"testdata/uncovered/forgotten.md": forgottenCode,
+			filepath.Join(abs, "cited.md"):     citedCode,
+			filepath.Join(rel, "forgotten.md"): forgottenCode,
 		}},
 	}
 	for _, tt := range tests {
@@ -484,11 +526,15 @@ func TestCheckAcceptsAbsoluteAndRelativeMapKeysTogether(t *testing.T) {
 func TestCheckIgnoresAFileWithoutTheParametersSection(t *testing.T) {
 	// A regra vale para os arquivos com a seção ## Parâmetros. Um arquivo que
 	// só cita a seção no meio do texto, como o docs/spec/README.md, não tem
-	// tabela para ler e não reprova o teste. Em testdata/prose_mention/,
-	// valid.md está no mapa e notes.md é esse arquivo.
+	// tabela para ler e não reprova o teste. Na pasta montada, valid.md está
+	// no mapa e notes.md é esse arquivo.
+	dir, _ := mount(t, "prose_mention", map[string]string{
+		"valid.md": "valid.md",
+		"notes.md": "prose_mention.md",
+	})
 	rec := &recordingTB{TB: t}
 	Check(rec, "gopher", map[string]Params{
-		"testdata/prose_mention/valid.md": {
+		filepath.Join(dir, "valid.md"): {
 			"gopher.stepsPerSatiety":             1000,
 			"gopher.speedSteps[Slow]":            0.25,
 			"gopher.maturityRanges[Child-1].min": 600,
@@ -504,11 +550,15 @@ func TestCheckReportsFailuresInAlphabeticalOrderOfFiles(t *testing.T) {
 	// arquivos em ordem alfabética. Os dois arquivos dizem gopher.hungryAt 3,
 	// e o código diz 4, então cada um gera uma falha. Uma única chamada
 	// poderia acertar a ordem por sorte, por isso o teste repete a conferência.
-	// Os arquivos ficam sozinhos em testdata/ordered/ porque Check também
+	// Os arquivos ficam sozinhos numa pasta montada porque Check também
 	// reprova as tabelas da mesma pasta que ficaram fora do mapa.
+	dir, _ := mount(t, "ordered", map[string]string{
+		"a_diverges.md": "hungry_at.md",
+		"b_diverges.md": "hungry_at.md",
+	})
 	files := map[string]Params{
-		"testdata/ordered/b_diverges.md": {"gopher.hungryAt": 4},
-		"testdata/ordered/a_diverges.md": {"gopher.hungryAt": 4},
+		filepath.Join(dir, "b_diverges.md"): {"gopher.hungryAt": 4},
+		filepath.Join(dir, "a_diverges.md"): {"gopher.hungryAt": 4},
 	}
 	want := []string{"a_diverges.md: ", "b_diverges.md: "}
 	for range 50 {
@@ -532,10 +582,16 @@ func TestCheckCitesTheSpecFileByNameInEveryFailure(t *testing.T) {
 	// passou: o pacote main passa docs/spec/..., e os outros, ../docs/spec/...
 	// Em not_a_number.md, o valor fora do formato está na linha 8; em
 	// a_diverges.md, a spec diz gopher.hungryAt 3, e o código diz 4. Os dois
-	// ficam sozinhos em testdata/named/ porque Check também reprova as tabelas
-	// da mesma pasta que ficaram fora do mapa.
+	// ficam sozinhos numa pasta montada porque Check também reprova as tabelas
+	// da mesma pasta que ficaram fora do mapa. A pasta é passada por dois
+	// caminhos diferentes, como docs/spec/ e ../docs/spec/ nos pacotes: o
+	// relativo e um que sai da pasta do pacote e volta para ela.
+	rel, _ := mount(t, "named", map[string]string{
+		"not_a_number.md": "not_a_number.md",
+		"a_diverges.md":   "hungry_at.md",
+	})
 	want := []string{"a_diverges.md: gopher.hungryAt: ", "not_a_number.md:8: "}
-	for _, dir := range []string{"testdata/named/", "../spectable/testdata/named/"} {
+	for _, dir := range []string{rel + "/", "../spectable/" + rel + "/"} {
 		t.Run(dir, func(t *testing.T) {
 			rec := &recordingTB{TB: t}
 			Check(rec, "gopher", map[string]Params{
