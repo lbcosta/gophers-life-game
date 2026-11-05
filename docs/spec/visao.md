@@ -1,6 +1,6 @@
 # Visão
 
-O Gophers Life é uma simulação de vida artificial. Gophers nascem, crescem, andam, esbarram uns nos outros, comem as plantas do gramado e morrem de fome, sem ninguém no controle. O jogador só observa: passa o mouse para ver nomes, clica para acompanhar um Gopher no Painel de perfil e lê o Log. O interesse está no comportamento que surge das regras.
+O Gophers Life é uma simulação de vida artificial. Gophers nascem, crescem, andam, esbarram uns nos outros, comem as Plantas do Gramado e morrem de fome, sem ninguém no controle. O jogador só observa: passa o mouse para ver nomes, clica para acompanhar um Gopher no Painel de perfil e lê o Log. O interesse está no comportamento que surge das regras.
 
 O projeto também é um meio de aprender Go. Código claro, testado e com as decisões explicadas vale mais que código esperto.
 

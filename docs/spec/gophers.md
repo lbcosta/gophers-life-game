@@ -5,7 +5,7 @@
 - **GOP-01** — Todo Gopher nasce bebê, com Idade zero e Saciedade `gopher.initialSatiety`.
 - **GOP-02** — A Velocidade é sorteada para cada Gopher, de forma independente e com a mesma chance, entre lento, normal e rápido. Ela é o tamanho do Passo, em pixels.
 - **GOP-03** — A cor é sorteada da Paleta sem repetição: a Paleta é embaralhada e distribuída em ordem, e a cada sete Gophers é embaralhada de novo. Assim, dois Gophers só têm a mesma cor quando há mais de sete.
-- **GOP-04** — A Paleta tem sete cores com nome: Clássico (o azul do Go), Cereja, Tangerina, Ouro, Chiclete, Uva e Cacau. Nenhuma é verde, e todas se distinguem entre si, do gramado e do branco dos olhos.
+- **GOP-04** — A Paleta tem sete cores com nome: Clássico (o azul do Go), Cereja, Tangerina, Ouro, Chiclete, Uva e Cacau. Nenhuma é verde, e todas se distinguem entre si, do Gramado e do branco dos olhos.
 - **GOP-05** — O nome é sorteado, sem repetição, de uma lista de 1000 prenomes dos Censos do IBGE: do 101º ao 1100º mais comum, sem acentos. Dois Gophers da mesma Colônia nunca têm o mesmo nome, porque o limite da Colônia é igual ao tamanho da lista.
 - **GOP-06** — A Emoção é sorteada no nascimento, com a mesma chance, entre neutro, surpreso, desconfiado, sonolento e feliz. Ela só aparece na Foto de perfil e não muda o comportamento.
 - **GOP-07** — No nascimento, cada Gopher sorteia a sua Maturidade: a Idade em que vai entrar em cada fase, com a mesma chance para cada valor dentro dos intervalos da tabela (extremos incluídos). Os intervalos não se sobrepõem, então as fases vêm sempre em ordem.
