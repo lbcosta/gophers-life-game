@@ -84,6 +84,10 @@ _Evite_: energia, vida
 **Cheio**:
 Um Gopher com a Saciedade no teto. Ele não come e deixa as Plantas prontas para os outros.
 
+**Folga** (`room`):
+Quanto falta para a Saciedade de um Gopher chegar ao teto. É zero quando ele está Cheio.
+_Evite_: espaço, apetite
+
 **Fome** (`Hungry`):
 O estado de um Gopher vivo com pouca Saciedade (3 ou menos). Na Tela aparece como "está passando fome".
 _Evite_: faminto, starving
