@@ -12,6 +12,11 @@ endif
 
 BIN := gophers-life-game
 
+# Arquivos Go conferidos pelo gofmt. Ficam de fora as worktrees dos agentes, em
+# .claude/worktrees: cada uma é uma cópia do repositório, com o trabalho de um
+# ticket em andamento, e o gofmt -l . entraria nelas.
+GOFILES = $(shell find . -name '*.go' -not -path './.claude/*' -not -path './.git/*')
+
 .DEFAULT_GOAL := run
 .PHONY: run build test bench vet clean help
 
@@ -29,7 +34,7 @@ bench: ## Mede o desempenho com muitos Gophers e plantas
 
 vet: ## Confere o código com go vet e gofmt
 	go vet ./...
-	@test -z "$$(gofmt -l .)" || { echo "Arquivos fora do gofmt:"; gofmt -l .; exit 1; }
+	@test -z "$$(gofmt -l $(GOFILES))" || { echo "Arquivos fora do gofmt:"; gofmt -l $(GOFILES); exit 1; }
 
 clean: ## Apaga o executável
 	rm -f $(BIN)
