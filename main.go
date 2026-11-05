@@ -12,6 +12,7 @@ import (
 
 	"gophers-life-game/gopher"
 	"gophers-life-game/hud"
+	"gophers-life-game/logs"
 	"gophers-life-game/world"
 )
 
@@ -46,6 +47,7 @@ type Game struct {
 	gophers *gopher.Colony
 	world   *world.World
 	photos  *hud.Photos
+	log     logs.Log // mensagens no canto inferior direito da tela
 
 	prerendered bool // os sprites já foram preparados (só dá depois que o jogo roda)
 
@@ -121,7 +123,10 @@ func (g *Game) Update() error {
 		g.screenChanged = false
 	}
 	g.world.Update()
-	g.gophers.Update(g.world.Forage)
+	for _, e := range g.gophers.Update(g.world.Forage) {
+		g.log.Add(logLevel(e.Kind), e.String())
+	}
+	g.log.Update()
 
 	mx, my := ebiten.CursorPosition()
 	g.gophers.Hover(float64(mx), float64(my))
@@ -146,6 +151,16 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	if selected := g.gophers.Selected(); selected != nil {
 		hud.DrawProfile(screen, selected.Profile(), g.photos)
 	}
+	g.log.Draw(screen)
+}
+
+// logLevel diz com que gravidade cada tipo de evento dos Gophers aparece no log:
+// a fome ainda tem volta, a morte não.
+func logLevel(k gopher.EventKind) logs.Level {
+	if k == gopher.Starved {
+		return logs.Critical
+	}
+	return logs.Warning
 }
 
 // Layout define a resolução lógica: acompanha o tamanho da tela. Só registra

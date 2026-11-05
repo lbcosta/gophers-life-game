@@ -10,8 +10,8 @@ import (
 	"math/rand/v2"
 )
 
-// walkEveryTicks é de quantos em quantos ticks o Gopher dá um passo.
-// Com 60 ticks por segundo, 7 ticks equivalem a cerca de 8,6 passos por segundo.
+// walkEveryTicks é de quantos em quantos ticks o Gopher dá um passo. Com 1, ele
+// dá um passo curto a cada tick (60 por segundo), o que deixa o movimento suave.
 const walkEveryTicks = 1
 
 // hitboxRadius é o raio da hit box do Gopher adulto: um círculo de 64px de
@@ -20,11 +20,12 @@ const walkEveryTicks = 1
 const hitboxRadius = 32
 
 // Saciedade. O Gopher nasce com initialSatiety e perde 1 ponto a cada
-// stepsPerSatiety passos. Quando chega a zero, ele morre. Comer devolve pontos
-// (ver Eat).
+// stepsPerSatiety passos. Com hungryAt ou menos, está passando fome; quando
+// chega a zero, ele morre. Comer devolve pontos (ver Eat).
 const (
 	initialSatiety  = 10
 	stepsPerSatiety = 1000
+	hungryAt        = 3
 )
 
 // Parâmetros da caminhada. Os ângulos são em graus, com 0º apontando para a
@@ -120,6 +121,12 @@ func (g *Gopher) Alive() bool {
 	return g.satiety > 0
 }
 
+// Hungry informa se o Gopher está passando fome: vivo, mas com saciedade de
+// hungryAt ou menos.
+func (g *Gopher) Hungry() bool {
+	return g.Alive() && g.satiety <= hungryAt
+}
+
 // Satiety devolve a saciedade atual do Gopher.
 func (g *Gopher) Satiety() int {
 	return g.satiety
@@ -155,7 +162,9 @@ const spawnAttempts = 100
 
 // Spawn põe o Gopher em uma posição aleatória da tela, com a hit box inteira
 // dentro dela e, se possível, sem se sobrepor aos Gophers em others. Defasa
-// também o ritmo dos passos, para que vários Gophers não andem em sincronia.
+// também o ritmo dos passos e o da fome, para que vários Gophers não andem em
+// sincronia nem percam saciedade todos no mesmo tick: o primeiro ponto cai
+// depois de um número sorteado de passos, até stepsPerSatiety.
 // Deve ser chamado depois de Resize, que informa o tamanho da tela.
 func (g *Gopher) Spawn(others ...*Gopher) {
 	g.spawn(everyone(others))
@@ -174,6 +183,7 @@ func (g *Gopher) spawn(n neighbors) {
 		}
 	}
 	g.ticks = g.intn(walkEveryTicks)
+	g.steps = g.intn(stepsPerSatiety)
 }
 
 // overlapsAny informa se a hit box de g se sobrepõe à de algum Gopher em others.

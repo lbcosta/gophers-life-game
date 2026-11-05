@@ -26,6 +26,9 @@ type Colony struct {
 	// outra.
 	grid   *grid.Grid[*Gopher]
 	nearby []*Gopher
+
+	// events é a lista devolvida por Update, reaproveitada de um tick para o outro.
+	events []Event
 }
 
 // gridCell é o lado das células da grade da colônia: o diâmetro da hit box de
@@ -74,9 +77,15 @@ type Forager func(x, y, radius float64) int
 // Update deve ser chamado uma vez por tick do jogo. Cada Gopher anda e, se
 // forage não for nil, come o que encontra. Os que morreram de fome saem da
 // colônia. Antes do primeiro Resize não faz nada.
-func (c *Colony) Update(forage Forager) {
+//
+// Devolve os eventos do tick, na ordem em que aconteceram: quem passou a ter
+// fome (Starving) e quem morreu de fome (Starved). Um Gopher com fome só gera
+// outro Starving se comer o bastante para sair da fome e depois voltar a ela. A
+// lista só vale até a próxima chamada, que a reaproveita.
+func (c *Colony) Update(forage Forager) []Event {
+	c.events = c.events[:0]
 	if !c.spawned {
-		return
+		return c.events
 	}
 
 	// A grade é refeita no começo de cada tick, com as posições de agora, e
@@ -87,10 +96,18 @@ func (c *Colony) Update(forage Forager) {
 	}
 	for _, g := range c.gophers {
 		x, y := g.x, g.y
+		alive, hungry := g.Alive(), g.Hungry()
 		g.update(c)
 		c.grid.Move(g, x, y, g.x, g.y)
 		if forage != nil && g.Alive() {
 			g.Eat(forage(g.x, g.y, g.hitbox()))
+		}
+
+		switch {
+		case alive && !g.Alive():
+			c.events = append(c.events, Event{Kind: Starved, Name: g.name})
+		case !hungry && g.Hungry():
+			c.events = append(c.events, Event{Kind: Starving, Name: g.name})
 		}
 	}
 
@@ -102,6 +119,7 @@ func (c *Colony) Update(forage Forager) {
 	}
 	clear(c.gophers[len(alive):])
 	c.gophers = alive
+	return c.events
 }
 
 // At devolve o Gopher vivo que está sob o ponto (x, y), isto é, com o ponto

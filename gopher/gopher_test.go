@@ -371,6 +371,9 @@ func TestSpawnOnScreenTooSmallStaysInside(t *testing.T) {
 }
 
 func TestSpawnDesynchronizesSteps(t *testing.T) {
+	if walkEveryTicks == 1 {
+		t.Skip("com walkEveryTicks = 1 todos dão um passo a cada tick, e não há fases para defasar")
+	}
 	// Dois Gophers com fases diferentes não dão o passo no mesmo tick.
 	stepTick := func(phase int) int {
 		g := newGopher(func() float64 { return 0.99 }, func(n int) int { return phase })
@@ -388,6 +391,25 @@ func TestSpawnDesynchronizesSteps(t *testing.T) {
 
 	if a, b := stepTick(0), stepTick(3); a == b || a < 0 || b < 0 {
 		t.Errorf("fases diferentes deveriam dar o passo em ticks diferentes, mas foram %d e %d", a, b)
+	}
+}
+
+func TestSpawnDesynchronizesSatietyLoss(t *testing.T) {
+	// O ponto de partida sorteado decide em que passo cai o primeiro ponto de
+	// saciedade: Gophers com sorteios diferentes não perdem juntos.
+	for _, start := range []int{0, 1, stepsPerSatiety / 2, stepsPerSatiety - 1} {
+		g := newGopher(func() float64 { return 0.99 }, func(n int) int { return start % n })
+		g.Resize(500, 500)
+		g.Spawn()
+
+		steps := 0
+		for g.satiety == initialSatiety && steps <= stepsPerSatiety {
+			g.move()
+			steps++
+		}
+		if want := stepsPerSatiety - start; steps != want {
+			t.Errorf("partindo de %d: perdeu o primeiro ponto no passo %d, esperado %d", start, steps, want)
+		}
 	}
 }
 
@@ -1039,11 +1061,11 @@ func TestBabiesFitWhereAdultsDoNot(t *testing.T) {
 	}
 }
 
-func TestGopherIsBornWithSatietyAndLosesOnePerHundredSteps(t *testing.T) {
+func TestGopherIsBornWithSatietyAndLosesOnePerThousandSteps(t *testing.T) {
 	g := newTestGopher(800, 600, 0)
 	g.satiety = initialSatiety
-	if initialSatiety != 10 || stepsPerSatiety != 100 {
-		t.Fatalf("initialSatiety = %d e stepsPerSatiety = %d, esperado 10 e 100", initialSatiety, stepsPerSatiety)
+	if initialSatiety != 10 || stepsPerSatiety != 1000 {
+		t.Fatalf("initialSatiety = %d e stepsPerSatiety = %d, esperado 10 e 1000", initialSatiety, stepsPerSatiety)
 	}
 
 	for step := 1; step <= 3*stepsPerSatiety; step++ {
@@ -1118,6 +1140,106 @@ func TestColonyRemovesStarvedGophersAndFeedsTheRest(t *testing.T) {
 	}
 	if fed.satiety < 3 {
 		t.Errorf("o que comeu ficou com saciedade %d, esperado pelo menos 3 (2 - 1 + 2)", fed.satiety)
+	}
+}
+
+func TestHungryFromThresholdDownWhileAlive(t *testing.T) {
+	g := newTestGopher(800, 600, 0)
+	for satiety, want := range map[int]bool{hungryAt + 1: false, hungryAt: true, 1: true, 0: false} {
+		g.satiety = satiety
+		if g.Hungry() != want {
+			t.Errorf("saciedade %d: Hungry() = %v, esperado %v", satiety, g.Hungry(), want)
+		}
+	}
+}
+
+// stepUntilSatietyDrops faz a colônia andar um passo, deixando antes cada
+// Gopher em gophers a um passo de perder 1 de saciedade, e devolve os eventos.
+func stepUntilSatietyDrops(c *Colony, forage Forager, gophers ...*Gopher) []Event {
+	for _, g := range gophers {
+		g.steps = stepsPerSatiety - 1
+	}
+	var events []Event
+	for range walkEveryTicks {
+		events = append(events, c.Update(forage)...)
+	}
+	return events
+}
+
+func TestColonyReportsHungerOnceWhenItStarts(t *testing.T) {
+	c := newTestColony(3, 33, 34)
+	c.Resize(800, 600)
+	g := c.gophers[1]
+	g.name = "Ana"
+	g.satiety = hungryAt + 1
+
+	got := stepUntilSatietyDrops(c, nil, g)
+	if want := []Event{{Kind: Starving, Name: "Ana"}}; !slices.Equal(got, want) {
+		t.Fatalf("ao chegar a %d de saciedade: eventos %v, esperado %v", hungryAt, got, want)
+	}
+
+	// Continuar com fome, ou com mais fome, não é novidade.
+	if got := stepUntilSatietyDrops(c, nil, g); len(got) != 0 {
+		t.Errorf("ao cair de %d para %d: eventos %v, esperado nenhum", hungryAt, hungryAt-1, got)
+	}
+}
+
+func TestColonyReportsHungerAgainAfterEatingEnough(t *testing.T) {
+	// Um Gopher só, porque feed alimenta todos, e os outros de newTestColony já
+	// têm saciedade math.MaxInt.
+	c := newTestColony(1, 35, 36)
+	c.Resize(800, 600)
+	g := c.gophers[0]
+	g.name = "Bia"
+	g.satiety = hungryAt
+
+	// Come 2 (e perde 1): sai da fome, sem evento.
+	feed := func(x, y, r float64) int { return 2 }
+	if got := stepUntilSatietyDrops(c, feed, g); len(got) != 0 || g.Hungry() {
+		t.Fatalf("ao comer: eventos %v e saciedade %d, esperado nenhum evento e sem fome", got, g.satiety)
+	}
+
+	got := stepUntilSatietyDrops(c, nil, g)
+	if want := []Event{{Kind: Starving, Name: "Bia"}}; !slices.Equal(got, want) {
+		t.Errorf("ao voltar a ter fome: eventos %v, esperado %v", got, want)
+	}
+}
+
+func TestColonyReportsStarvationOnly(t *testing.T) {
+	c := newTestColony(3, 37, 38)
+	c.Resize(800, 600)
+	a, b := c.gophers[0], c.gophers[2]
+	a.name, b.name = "Caio", "Davi"
+	a.satiety, b.satiety = 1, hungryAt+1
+
+	got := stepUntilSatietyDrops(c, nil, a, b)
+	want := []Event{{Kind: Starved, Name: "Caio"}, {Kind: Starving, Name: "Davi"}}
+	if !slices.Equal(got, want) {
+		t.Errorf("eventos %v, esperado %v (quem morre não passa a ter fome, e na ordem da colônia)", got, want)
+	}
+}
+
+func TestColonyReportsNothingBeforeResize(t *testing.T) {
+	c := newTestColony(1, 39, 40)
+	c.gophers[0].satiety = 1
+	if got := stepUntilSatietyDrops(c, nil, c.gophers[0]); len(got) != 0 {
+		t.Errorf("eventos %v antes do primeiro Resize, esperado nenhum", got)
+	}
+}
+
+func TestEventString(t *testing.T) {
+	cases := []struct {
+		e    Event
+		want string
+	}{
+		{Event{Kind: Starving, Name: "Ana"}, "Ana está passando fome"},
+		{Event{Kind: Starved, Name: "Ana"}, "Ana morreu de fome"},
+		{Event{Kind: 99, Name: "Ana"}, "Ana: EventKind(99)"},
+	}
+	for _, c := range cases {
+		if got := c.e.String(); got != c.want {
+			t.Errorf("%#v.String() = %q, esperado %q", c.e, got, c.want)
+		}
 	}
 }
 
