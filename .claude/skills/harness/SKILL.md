@@ -22,10 +22,12 @@ No WSL, rode sempre com `GALLIUM_DRIVER=d3d12` (o `make` não tem alvo para o ha
 | `-n N` | Número de Gophers (padrão 60) |
 | `-advance T` | Avança T ticks antes de abrir a janela. Com 3700, todos já são adultos |
 | `-select` | Seleciona um Gopher, o que abre o Painel de perfil |
-| `-hover` | Põe o mouse sobre outro Gopher e o segue enquanto ele anda |
+| `-hover` | Marca outro Gopher como Hover, a cada Tick, enquanto ele anda (sem mexer no mouse) |
 | `-shot arquivo.png` | Salva o frame 30 e sai |
-| `-dur 8s` | Descarta o primeiro segundo, mede por 8s e imprime uma linha: FPS, TPS, ms de update por tick, ms de draw por frame, alocações por frame e Gophers vivos |
+| `-dur 8s` | Descarta o primeiro segundo, mede por 8s e imprime uma linha: FPS, TPS, ms de update por tick, ms de draw por frame, alocações por frame e Gophers vivos. O ms de update conta só o Tick do jogo, sem o trabalho do próprio harness. |
 | `-cpuprofile arquivo` | Grava um perfil de CPU, para ler com `go tool pprof -top` |
+
+`-shot` e `-dur` não podem vir juntos: o harness recusa a combinação, explica o motivo no stderr e sai com código 2, sem abrir a janela.
 
 Compilado com `-tags ebitenginedebug`, a Ebitengine imprime os comandos de desenho de cada frame, o que serve para contar as chamadas à placa de vídeo.
 
