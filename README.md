@@ -45,7 +45,7 @@ make bench   # desempenho com 1000 Gophers e um mundo lotado de plantas
 ## Estrutura
 
 - `main.go`: abre a janela em tela cheia e roda o jogo.
-- `game/`: o jogo (Update, desenho e fundo de grama). É onde os pacotes se ligam, e o harness usa o mesmo.
+- `game/`: o jogo (Update, desenho e Gramado). É onde os pacotes se ligam, e o harness usa o mesmo.
 - `assets/`: os PNGs embutidos no binário.
 - `gopher/`: os Gophers e a Colônia (movimento, colisão, fases da vida, saciedade, eventos e desenho).
 - `world/`: as plantas (alimentos, crescimento, plantio e busca por comida).

@@ -1,12 +1,8 @@
 package spectable
 
-// Estes testes fixam a API do pacote de apoio que confere as tabelas de
-// parâmetros da spec (docs/spec/README.md, "Tabelas de parâmetros"):
-//
-//	type Params map[string]float64 // parâmetro (a expressão Go, como "gopher.hungryAt") -> valor
-//	func Read(path string) (Params, error)
-//	func Diff(file, pkg string, spec, code Params) []string
-//	func Check(t testing.TB, pkg string, files map[string]Params)
+// Estes testes fixam o comportamento do pacote de apoio que confere as tabelas
+// de parâmetros da spec (docs/spec/README.md, "Tabelas de parâmetros"). As
+// assinaturas ficam no próprio pacote: aqui só vale o que cada função faz.
 //
 // Read lê a seção "## Parâmetros" de um arquivo da spec. Diff compara a tabela
 // de um arquivo com as constantes que o teste de um pacote conhece e devolve
@@ -16,6 +12,7 @@ package spectable
 import (
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -61,7 +58,7 @@ func TestReadRejectsALineWithoutTheLeadingPipe(t *testing.T) {
 	// No Markdown do GitHub, a barra do começo da linha é opcional: uma linha
 	// sem ela ainda aparece na tabela. Dentro da seção ## Parâmetros, toda
 	// linha não vazia que não começa com | é um erro, em vez de sumir da
-	// conferência em silêncio (achado S7 do PR #10, aprovado na issue #2).
+	// conferência em silêncio (issue #2).
 	tests := []struct {
 		name, file string
 	}{
@@ -81,6 +78,54 @@ func TestReadRejectsAValueThatIsNotANumber(t *testing.T) {
 	// A spec pede ponto decimal: "0,15" não é um número.
 	if _, err := Read("testdata/not_a_number.md"); err == nil {
 		t.Error("Read aceitou o valor 0,15, esperado um erro")
+	}
+}
+
+func TestReadRejectsANumberOutsideTheSpecFormat(t *testing.T) {
+	// docs/spec/README.md, "Tabelas de parâmetros": o Valor é "só o número
+	// [...] com ponto decimal", ou seja, ^-?\d+(\.\d+)?$ (issue #26, S9).
+	// As outras grafias que o Go entende como número ficam de fora. Em cada
+	// arquivo, a linha 8 tem gopher.turnChance com o valor fora do formato, e
+	// o erro precisa apontar o arquivo, a linha e o parâmetro.
+	tests := []struct {
+		value, file string
+	}{
+		{"9e1", "bad_number_exponent.md"},
+		{"90.", "bad_number_trailing_point.md"},
+		{".5", "bad_number_leading_point.md"},
+		{"+90", "bad_number_plus_sign.md"},
+		{"Inf", "bad_number_inf.md"},
+		{"NaN", "bad_number_nan.md"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			_, err := Read("testdata/" + tt.file)
+			if err == nil {
+				t.Fatalf("Read aceitou o valor %s, esperado um erro", tt.value)
+			}
+			for _, s := range []string{tt.file + ":8", "gopher.turnChance"} {
+				if !strings.Contains(err.Error(), s) {
+					t.Errorf("Read devolveu o erro %q, esperado citar %s", err, s)
+				}
+			}
+		})
+	}
+}
+
+func TestReadAcceptsNumbersInTheSpecFormat(t *testing.T) {
+	// docs/spec/README.md, "Tabelas de parâmetros": inteiros e decimais com
+	// ponto continuam valendo (issue #26, S9).
+	got, err := Read("testdata/valid_numbers.md")
+	if err != nil {
+		t.Fatalf("Read devolveu erro %v, esperado nenhum", err)
+	}
+	want := Params{
+		"gopher.hungryAt":         3,
+		"gopher.speedSteps[Slow]": 0.25,
+		"gopher.ticksPerHunger":   1200,
+	}
+	if !maps.Equal(got, want) {
+		t.Errorf("Read = %v, esperado %v", got, want)
 	}
 }
 
@@ -290,5 +335,56 @@ func TestCheckFailsOnAnEmptyParameterCell(t *testing.T) {
 		if !rec.Failed() {
 			t.Errorf("Check(%q) aceitou uma linha com a célula de parâmetro vazia, esperado reprovar o teste", pkg)
 		}
+	}
+}
+
+func TestCheckReportsFailuresInAlphabeticalOrderOfFiles(t *testing.T) {
+	// Issue #26, P2: as falhas saem na mesma ordem em toda execução, com os
+	// arquivos em ordem alfabética. Os dois arquivos dizem gopher.hungryAt 3,
+	// e o código diz 4, então cada um gera uma falha. Uma única chamada
+	// poderia acertar a ordem por sorte, por isso o teste repete a conferência.
+	files := map[string]Params{
+		"testdata/b_diverges.md": {"gopher.hungryAt": 4},
+		"testdata/a_diverges.md": {"gopher.hungryAt": 4},
+	}
+	want := []string{"a_diverges.md: ", "b_diverges.md: "}
+	for range 50 {
+		rec := &recordingTB{TB: t}
+		Check(rec, "gopher", files)
+		if len(rec.failures) != len(want) {
+			t.Fatalf("Check registrou as falhas %q, esperada uma por arquivo", rec.failures)
+		}
+		for i, prefix := range want {
+			if !strings.HasPrefix(rec.failures[i], prefix) {
+				t.Fatalf("Check registrou as falhas %q, esperada a de a_diverges.md antes da de b_diverges.md", rec.failures)
+			}
+		}
+	}
+}
+
+func TestCheckCitesTheSpecFileByNameInEveryFailure(t *testing.T) {
+	// Issue #26, P6 (resposta do mantenedor: só o nome do arquivo, como Diff
+	// já fazia). O erro de formato (Read) e a divergência (Diff) citam o
+	// arquivo do mesmo jeito, seja qual for o caminho que o teste do pacote
+	// passou: o pacote main passa docs/spec/..., e os outros, ../docs/spec/...
+	// Em not_a_number.md, o valor fora do formato está na linha 8; em
+	// a_diverges.md, a spec diz gopher.hungryAt 3, e o código diz 4.
+	want := []string{"a_diverges.md: gopher.hungryAt: ", "not_a_number.md:8: "}
+	for _, dir := range []string{"testdata/", "../spectable/testdata/"} {
+		t.Run(dir, func(t *testing.T) {
+			rec := &recordingTB{TB: t}
+			Check(rec, "gopher", map[string]Params{
+				dir + "not_a_number.md": {"gopher.hungryAt": 3},
+				dir + "a_diverges.md":   {"gopher.hungryAt": 4},
+			})
+			if len(rec.failures) != len(want) {
+				t.Fatalf("Check registrou as falhas %q, esperada uma por arquivo", rec.failures)
+			}
+			for _, prefix := range want {
+				if !slices.ContainsFunc(rec.failures, func(f string) bool { return strings.HasPrefix(f, prefix) }) {
+					t.Errorf("Check registrou as falhas %q, esperada uma começando com %q", rec.failures, prefix)
+				}
+			}
+		})
 	}
 }

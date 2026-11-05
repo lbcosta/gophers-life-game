@@ -32,25 +32,26 @@ O jogo abre em tela cheia, e o Claude não consegue olhar a tela nem clicar. Par
 
 ## Ambiente
 
-O jogo roda no WSL2, com GPU NVIDIA. Sem `GALLIUM_DRIVER=d3d12`, o Mesa desenha com a CPU (o driver llvmpipe), e qualquer medida de FPS passa a ser da CPU, não do jogo. O `make run` e o F5 do VS Code já definem essa variável. O harness não a define, mas avisa no stderr quando ela falta.
+O jogo roda no WSL2, com GPU NVIDIA. Sem `GALLIUM_DRIVER=d3d12`, o Mesa desenha com a CPU (o driver llvmpipe), e qualquer medida de FPS passa a ser da CPU, não do jogo. O `make run` e o F5 do VS Code já definem essa variável. O harness não a define, mas, no WSL, avisa no stderr quando ela falta.
 
 Os commits são assinados pelo 1Password, e a assinatura faz parte do commit. Depois de um tempo parado, a primeira assinatura costuma falhar com `1Password: failed to fill whole buffer`: repita o mesmo commit. Se falhar de novo, pare e avise o mantenedor.
 
 ## Arquitetura
 
 - `main.go` abre a janela em tela cheia e roda o `game.Game`.
-- `game/`: o jogo (Update, desenho e fundo de grama). É o único pacote que conhece `gopher`, `world`, `hud` e `logs` ao mesmo tempo, e o harness usa o mesmo código.
+- `game/`: o jogo (Update, desenho e Gramado). É o único pacote que conhece `gopher`, `world`, `hud` e `logs` ao mesmo tempo, e o harness usa o mesmo código.
 - `assets/`: os PNGs, embutidos no binário pelo próprio pacote.
 - `cmd/harness`: roda o jogo num cenário por flags, para screenshots e medidas (skill `harness`).
 - `gopher/`: os Gophers e a Colônia, com a lógica separada do desenho (`draw.go` e `ellipse.go`).
 - `world/`: as Plantas. Não importa `gopher`: a Colônia recebe a Busca por comida como uma função (`Forager`).
 - `hud/`: o Painel de perfil. Só lê um `gopher.Profile`.
 - `logs/`: o Log. Recebe texto e Gravidade e não conhece os Gophers.
-- `internal/grid` (vizinhança), `internal/circle` (círculos prontos), `internal/fonts` (fonte única) e `internal/raster` (formas para os geradores).
+- `internal/grid` (vizinhança), `internal/circle` (círculos prontos), `internal/fonts` (fonte única), `internal/raster` (formas para os geradores) e `internal/spectable` (confere as tabelas de parâmetros da spec, só nos testes).
 
 ## Convenções de código
 
 - Comentários e documentação em português, explicando o porquê. Identificadores em inglês. "Gopher" sempre com inicial maiúscula.
+- Comentários quebram em até 80 colunas, contando o tab como 4. A régua vale para os comentários escritos ou mexidos a partir de agora: ninguém requebra um arquivo inteiro só por ela.
 - `Update` muda o estado; `Draw` só desenha.
 - O tempo é contado em Ticks, 60 por segundo. Segundos só aparecem na tela.
 - A lógica usa `float64`, e o `float32` fica nas chamadas de desenho.
