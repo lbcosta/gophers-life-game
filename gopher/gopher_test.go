@@ -1351,6 +1351,7 @@ func TestEventString(t *testing.T) {
 		{Event{Kind: BecameHungry, Name: "Ana"}, "Ana está passando fome"},
 		{Event{Kind: Starved, Name: "Ana"}, "Ana morreu de fome"},
 		{Event{Kind: 99, Name: "Ana"}, "Ana: EventKind(99)"},
+		{Event{Kind: EventKind(-1), Name: "Ana"}, "Ana: EventKind(-1)"},
 	}
 	for _, c := range cases {
 		if got := c.e.String(); got != c.want {
