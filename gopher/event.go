@@ -22,6 +22,11 @@ var eventKindPhrases = [numEventKinds]string{
 	Starved:      "morreu de fome",
 }
 
+// valid diz se k é um EventKind da tabela. Ao contrário dos outros enums, que
+// fazem essa checagem inline no String(), aqui ela é um helper porque
+// EventKind.String e Event.String precisam da mesma checagem: o Event.String usa
+// ": " como separador para um tipo inválido ("Ana: EventKind(99)") e " " para um
+// válido ("Ana morreu de fome").
 func (k EventKind) valid() bool { return k >= 0 && int(k) < numEventKinds }
 
 // String devolve a frase do tipo, sem o nome ("morreu de fome"), ou
