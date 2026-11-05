@@ -14,7 +14,7 @@ Você começa sem contexto. O orquestrador manda a issue, o branch e a pasta. Nu
 1. Confirme que `pwd` é a pasta informada e que `git branch --show-current` é o branch informado. Se a pasta não for a informada, rode EnterWorktree com esse caminho e confira de novo. Se ainda assim não estiver lá, pare e reporte.
 2. Leia a issue, as regras que ela cita em `docs/spec/`, o `GLOSSARY.md`, os ADRs da área e os testes novos do branch (`git log -p origin/develop..HEAD -- '*_test.go'`).
 3. Implemente até `make test` ficar verde. Os testes são o alvo e ficam como estão. Se um teste parecer errado, pare e explique no relatório por quê, citando a regra da spec.
-4. Rode `make vet` e `make test`, e leia a saída dos dois. Se a mudança toca o caminho quente (o Update da Colônia ou do Mundo, ou o desenho), meça antes e depois com `make bench` e, se ele existir, com o harness (skill `harness`). Veja `docs/spec/desempenho.md`.
+4. Rode `make vet` e `make test`, e leia a saída dos dois. Se a mudança toca o caminho quente (o Update da Colônia ou do Mundo, ou o desenho), meça antes e depois com `make bench` e, se a mudança mexe no desenho e o harness existir, também com o harness (skill `harness`). Veja `docs/spec/desempenho.md`.
 5. Commite com uma mensagem como `feat: cap satiety at 10` e o corpo `Refs #N`. Faça push.
 6. Se o PR ainda não existe, abra-o para o `develop` (`docs/agents/issue-tracker.md`):
    - título em inglês, no padrão Conventional Commits;
