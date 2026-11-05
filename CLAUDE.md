@@ -46,7 +46,7 @@ Os commits são assinados pelo 1Password, e a assinatura faz parte do commit. De
 - `world/`: as Plantas. Não importa `gopher`: a Colônia recebe a Busca por comida como uma função (`Forager`).
 - `hud/`: o Painel de perfil. Só lê um `gopher.Profile`.
 - `logs/`: o Log. Recebe texto e Gravidade e não conhece os Gophers.
-- `internal/grid` (vizinhança), `internal/circle` (círculos prontos), `internal/fonts` (fonte única) e `internal/raster` (formas para os geradores).
+- `internal/grid` (vizinhança), `internal/circle` (círculos prontos), `internal/fonts` (fonte única), `internal/raster` (formas para os geradores) e `internal/spectable` (confere as tabelas de parâmetros da spec, só nos testes).
 
 ## Convenções de código
 

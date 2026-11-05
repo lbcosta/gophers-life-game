@@ -1,12 +1,8 @@
 package spectable
 
-// Estes testes fixam a API do pacote de apoio que confere as tabelas de
-// parâmetros da spec (docs/spec/README.md, "Tabelas de parâmetros"):
-//
-//	type Params map[string]float64 // parâmetro (a expressão Go, como "gopher.hungryAt") -> valor
-//	func Read(path string) (Params, error)
-//	func Diff(file, pkg string, spec, code Params) []string
-//	func Check(t testing.TB, pkg string, files map[string]Params)
+// Estes testes fixam o comportamento do pacote de apoio que confere as tabelas
+// de parâmetros da spec (docs/spec/README.md, "Tabelas de parâmetros"). As
+// assinaturas ficam no próprio pacote: aqui só vale o que cada função faz.
 //
 // Read lê a seção "## Parâmetros" de um arquivo da spec. Diff compara a tabela
 // de um arquivo com as constantes que o teste de um pacote conhece e devolve
@@ -62,7 +58,7 @@ func TestReadRejectsALineWithoutTheLeadingPipe(t *testing.T) {
 	// No Markdown do GitHub, a barra do começo da linha é opcional: uma linha
 	// sem ela ainda aparece na tabela. Dentro da seção ## Parâmetros, toda
 	// linha não vazia que não começa com | é um erro, em vez de sumir da
-	// conferência em silêncio (achado S7 do PR #10, aprovado na issue #2).
+	// conferência em silêncio (issue #2).
 	tests := []struct {
 		name, file string
 	}{
