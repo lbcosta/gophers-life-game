@@ -158,9 +158,14 @@ func hasSection(path string) (bool, error) {
 // seria conferida.
 func Check(t testing.TB, pkg string, files map[string]Params) {
 	t.Helper()
+	// Glob devolve caminhos limpos e Dir também limpa o que recebe, então a
+	// comparação com as chaves de files tem de ser feita pela forma limpa:
+	// "./docs/spec/x.md" e "docs/spec/x.md" são o mesmo arquivo.
 	dirs := map[string]bool{}
+	read := map[string]bool{}
 	for path, code := range files {
 		dirs[filepath.Dir(path)] = true
+		read[filepath.Clean(path)] = true
 		spec, err := Read(path)
 		if err != nil {
 			t.Errorf("%v", err)
@@ -177,7 +182,7 @@ func Check(t testing.TB, pkg string, files map[string]Params) {
 			continue
 		}
 		for _, path := range entries {
-			if _, ok := files[path]; ok {
+			if read[filepath.Clean(path)] {
 				continue
 			}
 			has, err := hasSection(path)
