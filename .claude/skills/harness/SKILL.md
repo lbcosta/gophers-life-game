@@ -11,7 +11,7 @@ Se `cmd/harness` não existir no seu branch, diga isso no relatório e meça só
 
 ## Use a GPU
 
-No WSL, rode sempre com `GALLIUM_DRIVER=d3d12` (o `make` não tem alvo para o harness, então a variável é sua; sem ela, o harness imprime um aviso no stderr). Sem essa variável, o Mesa desenha com a CPU (o driver llvmpipe), e o FPS medido é o da CPU, não o do jogo: com 1000 adultos, a medida na CPU fica muito abaixo da referência de DES-01 (DES-08).
+No WSL, rode sempre com `GALLIUM_DRIVER=d3d12` (o `make` não tem alvo para o harness, então a variável é sua; sem ela, o harness imprime um aviso no stderr). Sem essa variável, o Mesa desenha com a CPU (o driver llvmpipe), e o FPS medido é o da CPU, não o do jogo. Uma rodada com o aviso no stderr não entra na comparação (DES-08).
 
 ## Contrato
 

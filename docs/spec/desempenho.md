@@ -15,4 +15,4 @@
 ## Como medir
 
 - **DES-07** — Toda mudança no caminho quente (o Update da Colônia e do Mundo, ou o desenho) é medida antes e depois, na mesma sessão, com `make bench` e com o harness, e os números vão para o PR. No harness, cada lado tem pelo menos três rodadas, e o PR traz todas, porque o FPS varia de uma rodada para outra.
-- **DES-08** — Medidas de FPS no WSL só valem na GPU. Sem `GALLIUM_DRIVER=d3d12`, o Mesa desenha com a CPU (llvmpipe), e a medida é da CPU, não do jogo, e fica muito abaixo da referência de DES-01. O `make run` e o F5 do VS Code já definem a variável, e o harness avisa quando ela falta.
+- **DES-08** — Medidas de FPS no WSL só valem na GPU. Sem `GALLIUM_DRIVER=d3d12`, o Mesa desenha com a CPU (o driver llvmpipe), e o FPS medido é o da CPU, não o do jogo. O `make run` e o F5 do VS Code já definem a variável. O harness não a define, mas avisa no stderr quando ela falta, e uma rodada com esse aviso não entra na comparação de DES-07.
