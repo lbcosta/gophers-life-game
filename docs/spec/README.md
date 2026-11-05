@@ -8,8 +8,8 @@ Esta pasta descreve o comportamento atual do jogo e é a fonte da verdade sobre 
 |---|---|---|
 | [visao.md](visao.md) | — | O que o jogo é, o que está fora de escopo e as ideias futuras |
 | [simulacao.md](simulacao.md) | `SIM` | Tempo, Tela, população inicial e a ordem das coisas em cada Tick |
-| [gophers.md](gophers.md) | `GOP` | Nascimento, movimento, Colisão, fases da vida, Saciedade e Eventos |
-| [plantas.md](plantas.md) | `PLA` | Alimentos, fases da planta, plantio e Busca por comida |
+| [gophers.md](gophers.md) | `GOP` | Nascimento, movimento, Colisão, Fases da vida, Saciedade e Eventos |
+| [plantas.md](plantas.md) | `PLA` | Alimentos, Fases da planta, plantio e Busca por comida |
 | [interface.md](interface.md) | `INT` | O que aparece na Tela: desenho, Hover, Seleção, Painel de perfil e Log |
 | [desempenho.md](desempenho.md) | `DES` | Metas de desempenho e as regras de desenho que as garantem |
 
