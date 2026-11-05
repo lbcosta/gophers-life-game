@@ -18,7 +18,7 @@
 - **PLA-08** — Busca por comida: a cada Tick, depois de andar, cada Gopher vivo afeta as Plantas cujo centro está dentro da Hit box dele (a uma distância menor que o raio):
   - a semente não sofre nada;
   - a Planta crescendo é pisoteada: some sem dar Saciedade;
-  - a Planta pronta é comida: some e dá a Saciedade do Alimento (GOP-29).
+  - a Planta pronta é comida se o Gopher não estiver cheio (GOP-34 e GOP-35): some e dá a Saciedade do Alimento (GOP-29).
 
   Várias Plantas podem ser afetadas no mesmo Tick.
 - **PLA-09** — Se a Tela diminuir depois do início, as Plantas que ficarem fora da área válida (PLA-04) somem.
