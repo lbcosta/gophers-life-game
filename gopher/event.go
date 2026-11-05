@@ -6,8 +6,8 @@ import "fmt"
 type EventKind int
 
 const (
-	// BecameHungry: o Gopher passou a ter fome, isto é, a saciedade dele caiu para
-	// hungryAt ou menos (ver Hungry).
+	// BecameHungry: o Gopher passou a ter fome, isto é, a saciedade dele caiu
+	// para hungryAt ou menos (ver Hungry).
 	BecameHungry EventKind = iota
 
 	// Starved: o Gopher morreu de fome.

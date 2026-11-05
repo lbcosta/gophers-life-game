@@ -80,9 +80,9 @@ type Forager func(x, y, radius float64, room int) int
 // colônia. Antes do primeiro Resize não faz nada.
 //
 // Devolve os eventos do tick, na ordem em que aconteceram: quem passou a ter
-// fome (BecameHungry) e quem morreu de fome (Starved). Um Gopher com fome só gera
-// outro BecameHungry se comer o bastante para sair da fome e depois voltar a ela. A
-// lista só vale até a próxima chamada, que a reaproveita.
+// fome (BecameHungry) e quem morreu de fome (Starved). Um Gopher com fome só
+// gera outro BecameHungry se comer o bastante para sair da fome e depois voltar
+// a ela. A lista só vale até a próxima chamada, que a reaproveita.
 func (c *Colony) Update(forage Forager) []Event {
 	c.events = c.events[:0]
 	if !c.spawned {
