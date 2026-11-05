@@ -2,9 +2,10 @@
 # jogar e "make help" para ver os outros comandos.
 
 # No WSL, o OpenGL desenha com a CPU (o driver llvmpipe do Mesa), a não ser que
-# GALLIUM_DRIVER peça o driver d3d12, que usa a placa de vídeo do Windows. Com
-# 1000 Gophers adultos, é a diferença entre ~27 e ~170 FPS. /dev/dxg só existe
-# no WSL com acesso à GPU, então fora dele nada muda. Para comparar com a CPU:
+# GALLIUM_DRIVER peça o driver d3d12, que usa a placa de vídeo do Windows.
+# Sem ele, o FPS medido é o da CPU, não o do jogo (DES-08, em
+# docs/spec/desempenho.md). /dev/dxg só existe no WSL com acesso à GPU, então
+# fora dele nada muda. Para comparar com a CPU:
 #   make run GALLIUM_DRIVER=llvmpipe
 ifneq ($(wildcard /dev/dxg),)
 export GALLIUM_DRIVER ?= d3d12
