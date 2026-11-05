@@ -1114,11 +1114,11 @@ func TestEatAddsSatietyButNotToTheDead(t *testing.T) {
 func TestColonyRemovesStarvedGophersAndFeedsTheRest(t *testing.T) {
 	c := newTestColony(3, 31, 32)
 	c.Resize(800, 600)
-	starving, fed := c.gophers[0], c.gophers[1]
+	dying, fed := c.gophers[0], c.gophers[1]
 
 	// Os dois estão a um passo de perder 1 de saciedade. O primeiro, com só 1,
 	// morre; o segundo tem 2 e come mais 2.
-	starving.satiety, starving.steps = 1, stepsPerSatiety-1
+	dying.satiety, dying.steps = 1, stepsPerSatiety-1
 	fed.satiety, fed.steps = 2, stepsPerSatiety-1
 	forage := func(x, y, r float64) int {
 		if x == fed.x && y == fed.y {
@@ -1134,7 +1134,7 @@ func TestColonyRemovesStarvedGophersAndFeedsTheRest(t *testing.T) {
 		t.Fatalf("%d Gophers vivos, esperado 2", len(c.Gophers()))
 	}
 	for _, g := range c.Gophers() {
-		if g == starving {
+		if g == dying {
 			t.Error("o Gopher que morreu de fome continua na colônia")
 		}
 	}
@@ -1174,7 +1174,7 @@ func TestColonyReportsHungerOnceWhenItStarts(t *testing.T) {
 	g.satiety = hungryAt + 1
 
 	got := stepUntilSatietyDrops(c, nil, g)
-	if want := []Event{{Kind: Starving, Name: "Ana"}}; !slices.Equal(got, want) {
+	if want := []Event{{Kind: BecameHungry, Name: "Ana"}}; !slices.Equal(got, want) {
 		t.Fatalf("ao chegar a %d de saciedade: eventos %v, esperado %v", hungryAt, got, want)
 	}
 
@@ -1200,7 +1200,7 @@ func TestColonyReportsHungerAgainAfterEatingEnough(t *testing.T) {
 	}
 
 	got := stepUntilSatietyDrops(c, nil, g)
-	if want := []Event{{Kind: Starving, Name: "Bia"}}; !slices.Equal(got, want) {
+	if want := []Event{{Kind: BecameHungry, Name: "Bia"}}; !slices.Equal(got, want) {
 		t.Errorf("ao voltar a ter fome: eventos %v, esperado %v", got, want)
 	}
 }
@@ -1213,7 +1213,7 @@ func TestColonyReportsStarvationOnly(t *testing.T) {
 	a.satiety, b.satiety = 1, hungryAt+1
 
 	got := stepUntilSatietyDrops(c, nil, a, b)
-	want := []Event{{Kind: Starved, Name: "Caio"}, {Kind: Starving, Name: "Davi"}}
+	want := []Event{{Kind: Starved, Name: "Caio"}, {Kind: BecameHungry, Name: "Davi"}}
 	if !slices.Equal(got, want) {
 		t.Errorf("eventos %v, esperado %v (quem morre não passa a ter fome, e na ordem da colônia)", got, want)
 	}
@@ -1232,7 +1232,7 @@ func TestEventString(t *testing.T) {
 		e    Event
 		want string
 	}{
-		{Event{Kind: Starving, Name: "Ana"}, "Ana está passando fome"},
+		{Event{Kind: BecameHungry, Name: "Ana"}, "Ana está passando fome"},
 		{Event{Kind: Starved, Name: "Ana"}, "Ana morreu de fome"},
 		{Event{Kind: 99, Name: "Ana"}, "Ana: EventKind(99)"},
 	}
