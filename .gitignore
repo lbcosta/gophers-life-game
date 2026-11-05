@@ -1,3 +1,9 @@
 # Binário gerado por "go build"
 /gophers-life-game
 *.exe
+
+# Worktrees em que os agentes trabalham nos tickets (ver a skill /pipeline)
+/.claude/worktrees/
+
+# Configurações locais do Claude Code, de cada máquina
+/.claude/settings.local.json

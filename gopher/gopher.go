@@ -21,9 +21,11 @@ const hitboxRadius = 32
 
 // Saciedade. O Gopher nasce com initialSatiety e perde 1 ponto a cada
 // stepsPerSatiety passos. Com hungryAt ou menos, está passando fome; quando
-// chega a zero, ele morre. Comer devolve pontos (ver Eat).
+// chega a zero, ele morre. Comer devolve pontos até o teto maxSatiety (ver
+// Eat), e o Gopher nasce cheio.
 const (
-	initialSatiety  = 10
+	maxSatiety      = 10
+	initialSatiety  = maxSatiety
 	stepsPerSatiety = 1000
 	hungryAt        = 3
 )
@@ -132,10 +134,19 @@ func (g *Gopher) Satiety() int {
 	return g.satiety
 }
 
-// Eat devolve ao Gopher n pontos de saciedade. Um Gopher morto não come.
+// Room devolve a Folga do Gopher: quanto falta para a saciedade chegar a
+// maxSatiety (GOP-28). É zero quando ele está Cheio, e também se a saciedade
+// passar do teto, o que só acontece em testes.
+func (g *Gopher) Room() int {
+	return max(maxSatiety-g.satiety, 0)
+}
+
+// Eat devolve ao Gopher n pontos de saciedade, sem passar de maxSatiety: o que
+// sobra se perde. Comer nunca tira saciedade, nem a que já passa do teto (só
+// possível em testes). Um Gopher morto não come.
 func (g *Gopher) Eat(n int) {
 	if g.Alive() {
-		g.satiety += n
+		g.satiety += min(n, g.Room())
 	}
 }
 

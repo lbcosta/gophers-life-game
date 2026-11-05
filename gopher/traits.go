@@ -40,7 +40,7 @@ func (s Speed) String() string {
 }
 
 // Palette é a paleta de cores dos Gophers: sete cores bem distintas entre si,
-// cada uma com uma "personalidade", e que se destacam do gramado e do branco dos
+// cada uma com nome próprio, e que se destacam do gramado e do branco dos
 // olhos (os testes conferem essas distâncias). Sem verde, para ninguém se
 // camuflar na grama.
 var Palette = []color.RGBA{

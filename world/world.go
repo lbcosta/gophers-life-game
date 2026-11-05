@@ -155,9 +155,11 @@ func (w *World) Update() {
 
 // Forage trata um Gopher que passa por cima das plantas: o que está com o
 // centro dentro do círculo de centro (x, y) e raio radius. Semente não sofre
-// nada; planta crescendo é desfeita; planta pronta é comida. Devolve a
+// nada; planta crescendo é pisoteada; planta pronta é comida, uma de cada vez,
+// enquanto o Gopher ainda come (GOP-34 e GOP-35). room é a Folga dele, quanto
+// falta para ficar Cheio: com 0 ele só pisoteia, e as prontas ficam. Devolve a
 // saciedade que o Gopher ganhou com o que comeu.
-func (w *World) Forage(x, y, radius float64) (satiety int) {
+func (w *World) Forage(x, y, radius float64, room int) (satiety int) {
 	if w.grid == nil {
 		return 0 // antes do primeiro Resize não há plantas
 	}
@@ -170,7 +172,11 @@ func (w *World) Forage(x, y, radius float64) (satiety int) {
 		case Seed:
 			continue
 		case Ready:
+			if room <= 0 {
+				continue // Gopher cheio deixa a comida para os outros
+			}
 			satiety += p.kind.Satiety()
+			room -= p.kind.Satiety()
 		}
 		// Growing: pisoteada, some sem dar nada.
 		w.remove(p)

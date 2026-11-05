@@ -71,17 +71,18 @@ func (c *Colony) around(g *Gopher) []*Gopher {
 }
 
 // Forager é o que um Gopher encontra ao andar: dado o círculo que ele ocupa
-// (centro e raio), devolve quanta saciedade ele ganha com o que comeu ali.
-type Forager func(x, y, radius float64) int
+// (centro e raio) e a Folga dele (room, 0 se já está Cheio),
+// devolve quanta saciedade ele ganha com o que comeu ali.
+type Forager func(x, y, radius float64, room int) int
 
 // Update deve ser chamado uma vez por tick do jogo. Cada Gopher anda e, se
 // forage não for nil, come o que encontra. Os que morreram de fome saem da
 // colônia. Antes do primeiro Resize não faz nada.
 //
 // Devolve os eventos do tick, na ordem em que aconteceram: quem passou a ter
-// fome (Starving) e quem morreu de fome (Starved). Um Gopher com fome só gera
-// outro Starving se comer o bastante para sair da fome e depois voltar a ela. A
-// lista só vale até a próxima chamada, que a reaproveita.
+// fome (BecameHungry) e quem morreu de fome (Starved). Um Gopher com fome só
+// gera outro BecameHungry se comer o bastante para sair da fome e depois voltar
+// a ela. A lista só vale até a próxima chamada, que a reaproveita.
 func (c *Colony) Update(forage Forager) []Event {
 	c.events = c.events[:0]
 	if !c.spawned {
@@ -100,14 +101,14 @@ func (c *Colony) Update(forage Forager) []Event {
 		g.update(c)
 		c.grid.Move(g, x, y, g.x, g.y)
 		if forage != nil && g.Alive() {
-			g.Eat(forage(g.x, g.y, g.hitbox()))
+			g.Eat(forage(g.x, g.y, g.hitbox(), g.Room()))
 		}
 
 		switch {
 		case alive && !g.Alive():
 			c.events = append(c.events, Event{Kind: Starved, Name: g.name})
 		case !hungry && g.Hungry():
-			c.events = append(c.events, Event{Kind: Starving, Name: g.name})
+			c.events = append(c.events, Event{Kind: BecameHungry, Name: g.name})
 		}
 	}
 
