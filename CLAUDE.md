@@ -32,14 +32,14 @@ O jogo abre em tela cheia, e o Claude não consegue olhar a tela nem clicar. Par
 
 ## Ambiente
 
-O jogo roda no WSL2, com GPU NVIDIA. Sem `GALLIUM_DRIVER=d3d12`, o Mesa desenha com a CPU (o driver llvmpipe), e qualquer medida de FPS passa a ser da CPU, não do jogo. O `make run` e o F5 do VS Code já definem essa variável. O harness não a define, mas avisa no stderr quando ela falta.
+O jogo roda no WSL2, com GPU NVIDIA. Sem `GALLIUM_DRIVER=d3d12`, o Mesa desenha com a CPU (o driver llvmpipe), e qualquer medida de FPS passa a ser da CPU, não do jogo. O `make run` e o F5 do VS Code já definem essa variável. O harness não a define, mas, no WSL, avisa no stderr quando ela falta.
 
 Os commits são assinados pelo 1Password, e a assinatura faz parte do commit. Depois de um tempo parado, a primeira assinatura costuma falhar com `1Password: failed to fill whole buffer`: repita o mesmo commit. Se falhar de novo, pare e avise o mantenedor.
 
 ## Arquitetura
 
 - `main.go` abre a janela em tela cheia e roda o `game.Game`.
-- `game/`: o jogo (Update, desenho e fundo de grama). É o único pacote que conhece `gopher`, `world`, `hud` e `logs` ao mesmo tempo, e o harness usa o mesmo código.
+- `game/`: o jogo (Update, desenho e Gramado). É o único pacote que conhece `gopher`, `world`, `hud` e `logs` ao mesmo tempo, e o harness usa o mesmo código.
 - `assets/`: os PNGs, embutidos no binário pelo próprio pacote.
 - `cmd/harness`: roda o jogo num cenário por flags, para screenshots e medidas (skill `harness`).
 - `gopher/`: os Gophers e a Colônia, com a lógica separada do desenho (`draw.go` e `ellipse.go`).
