@@ -18,6 +18,8 @@ package spectable
 import (
 	"fmt"
 	"maps"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -357,6 +359,48 @@ func TestCheckAcceptsAMapKeyThatIsNotACleanPath(t *testing.T) {
 			})
 			if rec.Failed() {
 				t.Errorf("Check com a chave %q: falhas %q, esperado nenhuma falha", tt.file, rec.failures)
+			}
+		})
+	}
+}
+
+func TestCheckAcceptsAbsoluteAndRelativeMapKeysTogether(t *testing.T) {
+	// docs/spec/README.md, "Tabelas de parâmetros": a regra reprova a tabela
+	// que nenhum teste lê, não a que está no mapa. Um caminho absoluto aponta
+	// para o mesmo arquivo que o relativo e conta como lido, mesmo quando o
+	// mapa mistura as duas formas (achado S-4 da revisão do PR #35). Em
+	// testdata/uncovered/, cited.md e forgotten.md têm a seção e os dois estão
+	// no mapa, então nada pode reprovar o teste.
+	cited, err := filepath.Abs("testdata/uncovered/cited.md")
+	if err != nil {
+		t.Fatalf("filepath.Abs devolveu erro %v", err)
+	}
+	forgotten, err := filepath.Abs("testdata/uncovered/forgotten.md")
+	if err != nil {
+		t.Fatalf("filepath.Abs devolveu erro %v", err)
+	}
+	citedCode := Params{"gopher.hungryAt": 3}
+	forgottenCode := Params{"gopher.turnChance": 0.15}
+
+	tests := []struct {
+		name  string
+		files map[string]Params
+	}{
+		{"cited.md relativo e forgotten.md absoluto", map[string]Params{
+			"testdata/uncovered/cited.md": citedCode,
+			forgotten:                     forgottenCode,
+		}},
+		{"cited.md absoluto e forgotten.md relativo", map[string]Params{
+			cited:                             citedCode,
+			"testdata/uncovered/forgotten.md": forgottenCode,
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := &recordingTB{TB: t}
+			Check(rec, "gopher", tt.files)
+			if rec.Failed() {
+				t.Errorf("Check com as chaves %q: falhas %q, esperado nenhuma falha", slices.Sorted(maps.Keys(tt.files)), rec.failures)
 			}
 		})
 	}
