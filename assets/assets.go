@@ -27,9 +27,14 @@ func FS() fs.FS {
 	return rooted{files}
 }
 
-// rooted tira o prefixo "assets/" dos caminhos pedidos.
+// rooted tira o prefixo "assets/" dos caminhos pedidos e recusa os que não o
+// têm, para um caminho errado não passar sem ninguém perceber.
 type rooted struct{ fs.FS }
 
 func (r rooted) Open(name string) (fs.File, error) {
-	return r.FS.Open(strings.TrimPrefix(name, "assets/"))
+	rest, ok := strings.CutPrefix(name, "assets/")
+	if !ok {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
+	}
+	return r.FS.Open(rest)
 }
