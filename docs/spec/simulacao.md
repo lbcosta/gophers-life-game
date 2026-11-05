@@ -37,7 +37,7 @@
 | Parâmetro | Valor | Significado |
 |---|---|---|
 | `main.gopherCount` | 60 | Gophers no início |
-| `main.plantsPerGopher` | 2 | Plantas da meta do Mundo para cada Gopher inicial |
+| `game.plantsPerGopher` | 2 | Plantas da meta do Mundo para cada Gopher inicial |
 | `gopher.MaxGophers` | 1000 | Limite de Gophers da Colônia |
 | `gopher.ticksPerSecond` | 60 | Ticks por segundo |
 | `world.ticksPerSecond` | 60 | Ticks por segundo |

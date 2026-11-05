@@ -30,7 +30,7 @@ Os arquivos com regras terminam numa seção `## Parâmetros` com os números qu
 |---|---|---|
 | `gopher.stepsPerSatiety` | 1000 | Passos para perder 1 ponto de Saciedade |
 
-- **Parâmetro:** a expressão Go da constante, entre crases, com o pacote na frente (`main.`, `gopher.`, `world.` ou `logs.`). Elemento de tabela usa índice e campo usa ponto, como no código: `gopher.speedSteps[Fast]`, `gopher.maturityRanges[Child-1].min`.
+- **Parâmetro:** a expressão Go da constante, entre crases, com o pacote na frente (`main.`, `game.`, `gopher.`, `world.` ou `logs.`). Elemento de tabela usa índice e campo usa ponto, como no código: `gopher.speedSteps[Fast]`, `gopher.maturityRanges[Child-1].min`.
 - **Valor:** só o número, na unidade do código (ticks, pixels, graus ou pontos), com ponto decimal (`0.25`).
 - **Significado:** texto livre, que pode trazer a conversão para segundos.
 
