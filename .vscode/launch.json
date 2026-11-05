@@ -2,11 +2,27 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Gophers Life",
+      // No WSL, sem GALLIUM_DRIVER=d3d12 o OpenGL desenha com a CPU (llvmpipe).
+      // Com o d3d12, usa a placa de vídeo. Só serve no WSL (ver o Makefile).
+      "name": "Gophers Life (GPU)",
       "type": "go",
       "request": "launch",
       "mode": "auto",
-      "program": "${workspaceFolder}"
+      "program": "${workspaceFolder}",
+      "env": {
+        "GALLIUM_DRIVER": "d3d12"
+      }
+    },
+    {
+      // Desenho pela CPU, para comparar o desempenho com a configuração acima.
+      "name": "Gophers Life (CPU)",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}",
+      "env": {
+        "GALLIUM_DRIVER": "llvmpipe"
+      }
     }
   ]
 }

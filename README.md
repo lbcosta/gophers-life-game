@@ -22,30 +22,41 @@ foto, emoção, velocidade, saciedade, fase da vida, idade e tamanho); clicar no
 ## Como executar
 
 ```bash
-go run .
+make run
 ```
 
+No WSL, `make run` liga a variável `GALLIUM_DRIVER=d3d12`, que faz o OpenGL
+usar a placa de vídeo. Sem ela, o Mesa desenha com a CPU (o driver `llvmpipe`):
+o jogo fica bem mais lento, e o notebook esquenta. Fora do WSL, `make run` é o
+mesmo que `go run .`. Para comparar com o desenho pela CPU, rode
+`make run GALLIUM_DRIVER=llvmpipe`.
+
 No VS Code, use **F5** (com depuração) ou **Ctrl+F5** (sem depuração), com a
-extensão oficial Go instalada.
+extensão oficial Go instalada. Há duas configurações: **Gophers Life (GPU)**,
+a padrão, e **Gophers Life (CPU)**, para comparar. As duas definem
+`GALLIUM_DRIVER`, que só faz sentido no WSL.
 
 O jogo abre em tela cheia. Pressione **Esc** para fechar.
+
+`make help` lista os outros comandos.
 
 ## Testes
 
 ```bash
-go test ./...
+make test
 ```
 
 Para medir o desempenho com muitos Gophers (1000 adultos se esbarrando, e um
 mundo lotado de plantas):
 
 ```bash
-go test -run '^$' -bench . ./gopher ./world
+make bench
 ```
 
 ## Estrutura
 
 - `main.go`: janela, loop do jogo e fundo de grama.
+- `Makefile`: atalhos para rodar (na GPU, no WSL), testar e medir.
 - `gopher/`: os Gophers.
   - `gopher.go`: movimento, giro e nascimento de um Gopher.
   - `life.go`: fases da vida, maturidade sorteada e crescimento do corpo e da hit box.
