@@ -22,7 +22,7 @@ const sectionHeading = "## Parâmetros"
 // knownPrefixes são os pacotes que têm teste de spec (docs/spec/README.md). Um
 // parâmetro com outro prefixo, ou sem prefixo, não seria conferido por teste
 // nenhum, então Read o rejeita em vez de deixá-lo passar em silêncio.
-var knownPrefixes = []string{"main.", "gopher.", "world.", "logs."}
+var knownPrefixes = []string{"main.", "game.", "gopher.", "world.", "logs."}
 
 // Read lê a tabela da seção "## Parâmetros" de um arquivo da spec. O formato é
 // rígido de propósito: qualquer linha fora dele é um erro, para a spec e o
@@ -44,8 +44,15 @@ func Read(path string) (Params, error) {
 			found = found || inSection
 			continue
 		}
-		if !inSection || !strings.HasPrefix(line, "|") {
+		if !inSection || line == "" {
 			continue
+		}
+		// No Markdown do GitHub, a barra do começo é opcional: uma linha logo
+		// abaixo da tabela, sem a barra, ainda aparece como linha dela. Por
+		// isso toda linha não vazia da seção precisa começar com |, ou o
+		// parâmetro sumiria da conferência em silêncio.
+		if !strings.HasPrefix(line, "|") {
+			return nil, fmt.Errorf("%s:%d: linha da seção %q sem | no começo: %q", path, n, sectionHeading, line)
 		}
 		if isSeparator(line) {
 			continue
