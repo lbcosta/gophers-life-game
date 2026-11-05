@@ -134,12 +134,33 @@ func sortedKeys(p Params) []string {
 	return keys
 }
 
+// hasSection diz se o arquivo tem a seção "## Parâmetros" como título. Uma
+// menção no meio do texto não conta, igual em Read.
+func hasSection(path string) (bool, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		if strings.TrimSpace(scanner.Text()) == sectionHeading {
+			return true, nil
+		}
+	}
+	return false, scanner.Err()
+}
+
 // Check lê cada arquivo da spec e reporta as divergências do pacote pkg como
 // falhas do teste. As chaves de files são caminhos; a mensagem usa só o nome
-// do arquivo.
+// do arquivo. Também reprova para todo .md das mesmas pastas que tem a seção
+// "## Parâmetros" e não está em files: uma tabela que nenhum teste lê nunca
+// seria conferida.
 func Check(t testing.TB, pkg string, files map[string]Params) {
 	t.Helper()
+	dirs := map[string]bool{}
 	for path, code := range files {
+		dirs[filepath.Dir(path)] = true
 		spec, err := Read(path)
 		if err != nil {
 			t.Errorf("%v", err)
@@ -149,4 +170,31 @@ func Check(t testing.TB, pkg string, files map[string]Params) {
 			t.Error(msg)
 		}
 	}
+	for _, dir := range sortedDirs(dirs) {
+		entries, err := filepath.Glob(filepath.Join(dir, "*.md"))
+		if err != nil {
+			t.Errorf("%v", err)
+			continue
+		}
+		for _, path := range entries {
+			if _, ok := files[path]; ok {
+				continue
+			}
+			has, err := hasSection(path)
+			if err != nil {
+				t.Errorf("%v", err)
+			} else if has {
+				t.Errorf("%s: tem a seção %q, mas o teste do pacote %s não a lê (acrescente o arquivo ao mapa de Check)", filepath.Base(path), sectionHeading, pkg)
+			}
+		}
+	}
+}
+
+func sortedDirs(m map[string]bool) []string {
+	dirs := make([]string, 0, len(m))
+	for d := range m {
+		dirs = append(dirs, d)
+	}
+	slices.Sort(dirs)
+	return dirs
 }
