@@ -71,8 +71,9 @@ func (c *Colony) around(g *Gopher) []*Gopher {
 }
 
 // Forager é o que um Gopher encontra ao andar: dado o círculo que ele ocupa
-// (centro e raio), devolve quanta saciedade ele ganha com o que comeu ali.
-type Forager func(x, y, radius float64) int
+// (centro e raio) e quanto falta para ele ficar cheio (room, 0 se já está),
+// devolve quanta saciedade ele ganha com o que comeu ali.
+type Forager func(x, y, radius float64, room int) int
 
 // Update deve ser chamado uma vez por tick do jogo. Cada Gopher anda e, se
 // forage não for nil, come o que encontra. Os que morreram de fome saem da
@@ -100,7 +101,7 @@ func (c *Colony) Update(forage Forager) []Event {
 		g.update(c)
 		c.grid.Move(g, x, y, g.x, g.y)
 		if forage != nil && g.Alive() {
-			g.Eat(forage(g.x, g.y, g.hitbox()))
+			g.Eat(forage(g.x, g.y, g.hitbox(), max(maxSatiety-g.satiety, 0)))
 		}
 
 		switch {

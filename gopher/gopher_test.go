@@ -1120,7 +1120,7 @@ func TestColonyRemovesStarvedGophersAndFeedsTheRest(t *testing.T) {
 	// morre; o segundo tem 2 e come mais 2.
 	dying.satiety, dying.steps = 1, stepsPerSatiety-1
 	fed.satiety, fed.steps = 2, stepsPerSatiety-1
-	forage := func(x, y, r float64) int {
+	forage := func(x, y, r float64, room int) int {
 		if x == fed.x && y == fed.y {
 			return 2
 		}
@@ -1140,6 +1140,73 @@ func TestColonyRemovesStarvedGophersAndFeedsTheRest(t *testing.T) {
 	}
 	if fed.satiety < 3 {
 		t.Errorf("o que comeu ficou com saciedade %d, esperado pelo menos 3 (2 - 1 + 2)", fed.satiety)
+	}
+}
+
+// lonelyGopher cria uma colônia de um Gopher só, numa tela de 800x600, com a
+// saciedade informada e longe de perder um ponto no próximo passo.
+func lonelyGopher(seed1, seed2 uint64, satiety int) (*Colony, *Gopher) {
+	c := newTestColony(1, seed1, seed2)
+	c.Resize(800, 600)
+	g := c.gophers[0]
+	g.satiety, g.steps = satiety, 0
+	return c, g
+}
+
+// rememberRoom devolve um Forager que não dá comida nenhuma e anota, em rooms,
+// o quanto o Gopher ainda comia a cada Busca por comida.
+func rememberRoom(rooms *[]int) Forager {
+	return func(x, y, r float64, room int) int {
+		*rooms = append(*rooms, room)
+		return 0
+	}
+}
+
+func TestColonyForagesWithWhatTheGopherStillEats(t *testing.T) {
+	// GOP-28: o teto é 10, e a Busca por comida fica sabendo quanto falta para
+	// ele. GOP-34: o Gopher cheio também busca (com 0), porque ainda pisoteia as
+	// Plantas crescendo.
+	for _, c := range []struct{ satiety, room int }{{10, 0}, {9, 1}, {4, 6}} {
+		col, _ := lonelyGopher(41, 42, c.satiety)
+		var rooms []int
+		col.Update(rememberRoom(&rooms))
+		if want := []int{c.room}; !slices.Equal(rooms, want) {
+			t.Errorf("saciedade %d: buscas com %v, esperado %v", c.satiety, rooms, want)
+		}
+	}
+}
+
+func TestEatingNeverFillsSatietyAboveTheCap(t *testing.T) {
+	// GOP-28 e GOP-29: comer soma à Saciedade sem passar do teto 10, e o que
+	// passa se perde.
+	for _, c := range []struct{ satiety, eaten, want int }{
+		{9, 2, 10},  // a batata enche o Gopher, e 1 se perde
+		{10, 2, 10}, // cheio continua com 10, mesmo que a busca dê comida
+		{7, 2, 9},   // abaixo do teto, soma tudo
+	} {
+		col, g := lonelyGopher(43, 44, c.satiety)
+		col.Update(func(x, y, r float64, room int) int { return c.eaten })
+		if g.Satiety() != c.want {
+			t.Errorf("com %d, comendo %d: saciedade %d, esperado %d", c.satiety, c.eaten, g.Satiety(), c.want)
+		}
+	}
+}
+
+func TestNewColonyGophersAreBornFull(t *testing.T) {
+	// GOP-01 e GOP-28: todo Gopher nasce com Saciedade 10, que é o teto, então
+	// nasce cheio.
+	c := NewColony(1)
+	c.Resize(800, 600)
+	g := c.Gophers()[0]
+	g.steps = 0 // longe de perder um ponto no próximo passo
+	if g.Satiety() != 10 {
+		t.Fatalf("nasceu com saciedade %d, esperado 10", g.Satiety())
+	}
+
+	var rooms []int
+	c.Update(rememberRoom(&rooms))
+	if want := []int{0}; !slices.Equal(rooms, want) {
+		t.Errorf("recém-nascido buscou comida com %v, esperado %v (cheio)", rooms, want)
 	}
 }
 
@@ -1194,7 +1261,7 @@ func TestColonyReportsHungerAgainAfterEatingEnough(t *testing.T) {
 	g.satiety = hungryAt
 
 	// Come 2 (e perde 1): sai da fome, sem evento.
-	feed := func(x, y, r float64) int { return 2 }
+	feed := func(x, y, r float64, room int) int { return 2 }
 	if got := stepUntilSatietyDrops(c, feed, g); len(got) != 0 || g.Hungry() {
 		t.Fatalf("ao comer: eventos %v e saciedade %d, esperado nenhum evento e sem fome", got, g.satiety)
 	}
