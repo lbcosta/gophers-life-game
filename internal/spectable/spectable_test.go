@@ -14,6 +14,7 @@ package spectable
 // arquivo e reporta as divergências do pacote como falhas do teste.
 
 import (
+	"fmt"
 	"maps"
 	"strings"
 	"testing"
@@ -124,5 +125,73 @@ func TestDiffIgnoresParametersOfOtherPackages(t *testing.T) {
 
 	if got := Diff("simulacao.md", "gopher", spec, code); len(got) != 0 {
 		t.Errorf("Diff = %q, esperado nenhuma divergência", got)
+	}
+}
+
+// recordingTB guarda as falhas que Check reportaria, em vez de reprovar este
+// teste. Assim dá para ver se o teste de um pacote seria reprovado sem fixar
+// se a linha errada cai em Read ou em Diff.
+type recordingTB struct {
+	testing.TB
+	failures []string
+}
+
+func (r *recordingTB) Helper()           {}
+func (r *recordingTB) Fail()             { r.failures = append(r.failures, "Fail") }
+func (r *recordingTB) FailNow()          { r.Fail() }
+func (r *recordingTB) Failed() bool      { return len(r.failures) > 0 }
+func (r *recordingTB) Error(args ...any) { r.failures = append(r.failures, fmt.Sprint(args...)) }
+func (r *recordingTB) Errorf(f string, a ...any) {
+	r.failures = append(r.failures, fmt.Sprintf(f, a...))
+}
+func (r *recordingTB) Fatal(args ...any)          { r.Error(args...) }
+func (r *recordingTB) Fatalf(f string, a ...any)  { r.Errorf(f, a...) }
+func (r *recordingTB) Log(args ...any)            {}
+func (r *recordingTB) Logf(f string, args ...any) {}
+
+func TestCheckPassesATableThatMatchesTheCode(t *testing.T) {
+	// Controle do recordingTB: uma tabela igual ao código não reprova nada.
+	rec := &recordingTB{TB: t}
+	Check(rec, "gopher", map[string]Params{
+		"testdata/valid.md": {
+			"gopher.stepsPerSatiety":             1000,
+			"gopher.speedSteps[Slow]":            0.25,
+			"gopher.maturityRanges[Child-1].min": 600,
+		},
+	})
+	if rec.Failed() {
+		t.Errorf("Check reprovou uma tabela igual ao código: %q, esperado nenhuma falha", rec.failures)
+	}
+}
+
+func TestCheckFailsOnAParameterWithoutAKnownPackage(t *testing.T) {
+	// docs/spec/README.md, "Tabelas de parâmetros": o parâmetro tem o pacote
+	// na frente, e o pacote é main., gopher., world. ou logs. Uma linha fora
+	// disso (um erro de digitação, outro pacote ou nenhum pacote) não é de
+	// nenhum dos quatro testes, então precisa reprovar o teste de qualquer um
+	// deles, em vez de sumir em silêncio.
+	tests := []struct {
+		name, file, param string
+	}{
+		{"prefixo com erro de digitação", "testdata/unknown_prefix_typo.md", "gophr.hungryAt"},
+		{"prefixo de outro pacote", "testdata/unknown_prefix_package.md", "hud.panelWidth"},
+		{"sem prefixo", "testdata/no_prefix.md", "hungryAt"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, pkg := range []string{"main", "gopher", "world", "logs"} {
+				// O arquivo também tem gopher.hungryAt, que o teste do
+				// pacote gopher conhece: a única linha errada é tt.param.
+				code := Params{}
+				if pkg == "gopher" {
+					code["gopher.hungryAt"] = 3
+				}
+				rec := &recordingTB{TB: t}
+				Check(rec, pkg, map[string]Params{tt.file: code})
+				if !rec.Failed() {
+					t.Errorf("Check(%q) aceitou a linha %s, esperado reprovar o teste", pkg, tt.param)
+				}
+			}
+		})
 	}
 }
