@@ -19,6 +19,11 @@ type Params map[string]float64
 
 const sectionHeading = "## Parâmetros"
 
+// knownPrefixes são os pacotes que têm teste de spec (docs/spec/README.md). Um
+// parâmetro com outro prefixo, ou sem prefixo, não seria conferido por teste
+// nenhum, então Read o rejeita em vez de deixá-lo passar em silêncio.
+var knownPrefixes = []string{"main.", "gopher.", "world.", "logs."}
+
 // Read lê a tabela da seção "## Parâmetros" de um arquivo da spec. O formato é
 // rígido de propósito: qualquer linha fora dele é um erro, para a spec e o
 // teste não divergirem em silêncio.
@@ -54,6 +59,9 @@ func Read(path string) (Params, error) {
 			return nil, fmt.Errorf("%s:%d: o parâmetro %q precisa estar entre crases", path, n, name)
 		}
 		name = name[1 : len(name)-1]
+		if !slices.ContainsFunc(knownPrefixes, func(p string) bool { return strings.HasPrefix(name, p) }) {
+			return nil, fmt.Errorf("%s:%d: o parâmetro %s não começa com um pacote conhecido (%s)", path, n, name, strings.Join(knownPrefixes, ", "))
+		}
 		v, err := strconv.ParseFloat(value, 64)
 		if err != nil {
 			return nil, fmt.Errorf("%s:%d: %s: o valor %q não é um número (use ponto decimal)", path, n, name, value)
