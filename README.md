@@ -37,7 +37,7 @@ GALLIUM_DRIVER=d3d12 go run ./cmd/harness -n 1000 -advance 3700 -dur 8s
 ## Testes
 
 ```bash
-make test    # testes
+make test    # testes, incluindo a conferência das tabelas de parâmetros da spec
 make vet     # go vet e gofmt
 make bench   # desempenho com 1000 Gophers e um mundo lotado de plantas
 ```
@@ -51,7 +51,7 @@ make bench   # desempenho com 1000 Gophers e um mundo lotado de plantas
 - `world/`: as plantas (alimentos, crescimento, plantio e busca por comida).
 - `hud/`: o painel de perfil e as fotos.
 - `logs/`: o log de mensagens do canto inferior direito.
-- `internal/`: a grade espacial, os círculos prontos, a fonte e o desenho de formas usado pelos geradores.
+- `internal/`: a grade espacial, os círculos prontos, a fonte, o desenho de formas usado pelos geradores e a leitura das tabelas de parâmetros da spec, que os testes comparam com as constantes.
 - `cmd/harness`: roda o jogo num cenário por flags, para screenshots e medidas.
 - `cmd/genassets` e `cmd/genprofiles`: geram os desenhos das plantas e as fotos de perfil, que ficam em `assets/`.
 - `docs/spec/`: o comportamento do jogo, regra por regra.
