@@ -6,9 +6,9 @@ import "fmt"
 type EventKind int
 
 const (
-	// Starving: o Gopher passou a ter fome, isto é, a saciedade dele caiu para
+	// BecameHungry: o Gopher passou a ter fome, isto é, a saciedade dele caiu para
 	// hungryAt ou menos (ver Hungry).
-	Starving EventKind = iota
+	BecameHungry EventKind = iota
 
 	// Starved: o Gopher morreu de fome.
 	Starved
@@ -24,7 +24,7 @@ type Event struct {
 // String descreve o evento numa frase, como "Ana morreu de fome".
 func (e Event) String() string {
 	switch e.Kind {
-	case Starving:
+	case BecameHungry:
 		return e.Name + " está passando fome"
 	case Starved:
 		return e.Name + " morreu de fome"
