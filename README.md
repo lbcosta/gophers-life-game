@@ -36,6 +36,13 @@ O jogo abre em tela cheia. Pressione **Esc** para fechar.
 go test ./...
 ```
 
+Para medir o desempenho com muitos Gophers (1000 adultos se esbarrando, e um
+mundo lotado de plantas):
+
+```bash
+go test -run '^$' -bench . ./gopher ./world
+```
+
 ## Estrutura
 
 - `main.go`: janela, loop do jogo e fundo de grama.
@@ -44,7 +51,7 @@ go test ./...
   - `life.go`: fases da vida, maturidade sorteada e crescimento do corpo e da hit box.
   - `interaction.go`: colisões entre Gophers e as reações a elas.
   - `personality.go`: velocidades, paleta de cores e criação de Gophers sorteados.
-  - `colony.go`: vários Gophers na mesma tela e o hover do mouse.
+  - `colony.go`: vários Gophers na mesma tela, a grade que diz quem está perto de quem e o hover do mouse.
   - `profile.go`: a fotografia das características de um Gopher, mostrada no painel.
   - `names.go` e `names.txt`: os nomes que os Gophers podem receber, e de onde vieram.
   - `draw.go` e `ellipse.go`: desenho.
@@ -55,6 +62,9 @@ go test ./...
   - `sprites.go`: carrega e pré-renderiza os sprites das plantas.
 - `cmd/genprofiles/`: gera as fotos de perfil (uma por cor e emoção). Rode `go run ./cmd/genprofiles`; com `-sheet arquivo.png`, grava também uma folha com todas.
 - `internal/raster/`: desenho de formas com contorno, usado pelos dois geradores.
+- `internal/grid/`: grade espacial, que acha depressa o que está perto de um ponto (Gophers para colidir, plantas para comer).
+- `internal/circle/`: círculos desenhados uma vez e depois só copiados, usados pelos Gophers e pelo painel.
+- `internal/fonts/`: a fonte do jogo, carregada uma única vez para todos os textos.
 - `cmd/genassets/`: gera os sprites das plantas. Rode `go run ./cmd/genassets` para refazê-los.
 - `assets/grass.png`: textura de grama.
 - `assets/profiles/`: fotos de perfil dos Gophers, 256x256 (7 cores × 5 emoções). Cada Gopher sorteia a emoção no nascimento, e o painel mostra a foto da cor e da emoção dele.

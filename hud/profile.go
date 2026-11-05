@@ -2,16 +2,16 @@
 package hud
 
 import (
-	"bytes"
 	"fmt"
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
-	"golang.org/x/image/font/gofont/goregular"
 
 	"gophers-life-game/gopher"
+	"gophers-life-game/internal/circle"
+	"gophers-life-game/internal/fonts"
 )
 
 // Medidas do painel de perfil, em pixels.
@@ -41,32 +41,11 @@ func PanelContains(x, y, screenWidth int) bool {
 	return x >= left && x < left+panelWidth && y >= panelMargin && y < panelMargin+panelHeight
 }
 
-var (
-	faceSource *text.GoTextFaceSource
-	faces      = map[float64]*text.GoTextFace{} // uma por tamanho, criadas uma única vez
-)
-
-// face devolve a fonte no tamanho size, criando-a (e a fonte-base) na primeira
-// vez em que é pedida, para não criar uma nova a cada texto de cada frame.
-func face(size float64) *text.GoTextFace {
-	if faceSource == nil {
-		src, err := text.NewGoTextFaceSource(bytes.NewReader(goregular.TTF))
-		if err != nil {
-			panic(err) // a fonte está embutida no programa: não deve falhar
-		}
-		faceSource = src
-	}
-	if faces[size] == nil {
-		faces[size] = &text.GoTextFace{Source: faceSource, Size: size}
-	}
-	return faces[size]
-}
-
 func drawText(screen *ebiten.Image, s string, size, x, y float64, clr color.Color) {
 	op := &text.DrawOptions{}
 	op.GeoM.Translate(x, y)
 	op.ColorScale.ScaleWithColor(clr)
-	text.Draw(screen, s, face(size), op)
+	text.Draw(screen, s, fonts.Regular(size), op)
 }
 
 // DrawProfile desenha, do lado direito da tela, o painel com as características
@@ -115,10 +94,10 @@ func DrawProfile(screen *ebiten.Image, p gopher.Profile, photos *Photos) {
 	}
 	for _, r := range rows {
 		drawText(screen, r.label, 15, x, y, dimColor)
-		valueW, _ := text.Measure(r.value, face(15), 0)
+		valueW, _ := text.Measure(r.value, fonts.Regular(15), 0)
 		valueX := float64(left) + panelWidth - panelPadding - valueW
 		if r.label == "Cor" { // uma amostra da cor, à esquerda do nome dela
-			vector.FillCircle(screen, float32(valueX)-14, float32(y)+9, 6, p.Color, true)
+			circle.Fill(screen, float32(valueX)-14, float32(y)+9, 6, p.Color)
 		}
 		drawText(screen, r.value, 15, valueX, y, textColor)
 		y += rowHeight

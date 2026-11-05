@@ -3,6 +3,9 @@ package world
 import (
 	"math"
 	"math/rand/v2"
+	"slices"
+
+	"gophers-life-game/internal/grid"
 )
 
 const (
@@ -23,6 +26,12 @@ const (
 	// o limite superior da idade sorteada para as plantas iniciais. Com 1,5, uma
 	// em cada três já começa pronta, e as outras estão espalhadas entre as fases.
 	initialAgeFactor = 1.5
+
+	// gridCell é o lado das células da grade das plantas: a menor distância entre
+	// duas delas. Assim cada célula tem no máximo umas poucas plantas, e as buscas
+	// (de um Gopher comendo ou de uma semente procurando lugar) cobrem poucas
+	// células.
+	gridCell = 2 * plantRadius
 )
 
 // World reúne as plantas e cuida de plantá-las, fazê-las crescer e entregá-las
@@ -33,6 +42,12 @@ type World struct {
 	width, height float64
 	populated     bool // as plantas iniciais já foram plantadas
 	ticks         int
+
+	// grid guarda cada planta na parte da tela em que ela está, para que Forage e
+	// crowded só confiram as plantas perto do ponto, e não todas. nearby é a lista
+	// das buscas na grade, reaproveitada de uma para a outra.
+	grid   *grid.Grid[*Plant]
+	nearby []*Plant
 
 	sprites *Sprites
 
@@ -53,11 +68,12 @@ func (w *World) Plants() []*Plant { return w.plants }
 // iniciais; nas seguintes, remove as que ficaram fora da tela.
 func (w *World) Resize(width, height float64) {
 	w.width, w.height = width, height
+	w.grid = grid.New[*Plant](width, height, gridCell)
 	if !w.populated {
 		for range w.target {
 			if p := w.newPlant(); p != nil {
 				p.age = w.intn(int(float64(p.maturity[len(p.maturity)-1]) * initialAgeFactor))
-				w.plants = append(w.plants, p)
+				w.add(p)
 			}
 		}
 		w.populated = true
@@ -67,10 +83,27 @@ func (w *World) Resize(width, height float64) {
 	for _, p := range w.plants {
 		if w.inside(p.x, p.y) {
 			kept = append(kept, p)
+			w.grid.Add(p, p.x, p.y)
 		}
 	}
 	clear(w.plants[len(kept):])
 	w.plants = kept
+}
+
+// add planta p no mundo.
+func (w *World) add(p *Plant) {
+	w.plants = append(w.plants, p)
+	w.grid.Add(p, p.x, p.y)
+}
+
+// remove tira p do mundo. Procurá-la na lista percorre todas as plantas, mas
+// isso só acontece quando uma planta sai, o que é raro perto das buscas: cada
+// Gopher procura comida em todo tick.
+func (w *World) remove(p *Plant) {
+	w.grid.Remove(p, p.x, p.y)
+	if i := slices.Index(w.plants, p); i >= 0 {
+		w.plants = slices.Delete(w.plants, i, i+1)
+	}
 }
 
 func (w *World) inside(x, y float64) bool {
@@ -93,7 +126,8 @@ func (w *World) newPlant() *Plant {
 
 // crowded informa se (x, y) está perto demais de alguma planta.
 func (w *World) crowded(x, y float64) bool {
-	for _, p := range w.plants {
+	w.nearby = w.grid.AppendNear(w.nearby[:0], x, y, 2*plantRadius)
+	for _, p := range w.nearby {
 		if math.Hypot(p.x-x, p.y-y) < 2*plantRadius {
 			return true
 		}
@@ -114,7 +148,7 @@ func (w *World) Update() {
 	w.ticks++
 	if w.ticks%spawnEveryTicks == 0 && len(w.plants) < w.target {
 		if p := w.newPlant(); p != nil {
-			w.plants = append(w.plants, p)
+			w.add(p)
 		}
 	}
 }
@@ -124,21 +158,22 @@ func (w *World) Update() {
 // nada; planta crescendo é desfeita; planta pronta é comida. Devolve a
 // saciedade que o Gopher ganhou com o que comeu.
 func (w *World) Forage(x, y, radius float64) (satiety int) {
-	kept := w.plants[:0]
-	for _, p := range w.plants {
+	if w.grid == nil {
+		return 0 // antes do primeiro Resize não há plantas
+	}
+	w.nearby = w.grid.AppendNear(w.nearby[:0], x, y, radius)
+	for _, p := range w.nearby {
 		if math.Hypot(p.x-x, p.y-y) >= radius {
-			kept = append(kept, p)
 			continue
 		}
 		switch p.Stage() {
 		case Seed:
-			kept = append(kept, p)
+			continue
 		case Ready:
 			satiety += p.kind.Satiety()
 		}
 		// Growing: pisoteada, some sem dar nada.
+		w.remove(p)
 	}
-	clear(w.plants[len(kept):])
-	w.plants = kept
 	return satiety
 }

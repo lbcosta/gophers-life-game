@@ -2,6 +2,7 @@ package world
 
 import (
 	"math/rand/v2"
+	"slices"
 	"testing"
 )
 
@@ -16,7 +17,7 @@ func newTestWorld(target int) *World {
 // plantAt põe em w uma planta do tipo kind na idade age, em (x, y).
 func plantAt(w *World, kind Kind, x, y float64, age int) *Plant {
 	p := &Plant{kind: kind, x: x, y: y, age: age, maturity: maturity{100, 200}}
-	w.plants = append(w.plants, p)
+	w.add(p)
 	return p
 }
 
@@ -123,7 +124,9 @@ func TestUpdateGrowsPlants(t *testing.T) {
 
 func TestUpdateReplantsUpToTarget(t *testing.T) {
 	w := newTestWorld(10)
-	w.plants = w.plants[:3]
+	for _, p := range slices.Clone(w.plants[3:]) {
+		w.remove(p)
+	}
 	for range 100 * spawnEveryTicks {
 		w.Update()
 	}
@@ -177,5 +180,38 @@ func TestForageOnlyTouchesPlantsUnderTheGopher(t *testing.T) {
 	}
 	if len(w.plants) != 2 {
 		t.Errorf("%d plantas, esperado 2 (a longe e a semente)", len(w.plants))
+	}
+}
+
+func TestForageTakesWhatItRemovesOffTheGrid(t *testing.T) {
+	w := newTestWorld(0)
+	plantAt(w, Potato, 100, 100, 200)
+
+	if got := w.Forage(100, 100, 30); got != Potato.Satiety() {
+		t.Fatalf("ganhou %d, esperado %d", got, Potato.Satiety())
+	}
+
+	// A planta comida não pode continuar na grade: nem ser comida de novo, nem
+	// impedir que outra nasça no lugar dela.
+	if got := w.Forage(100, 100, 30); got != 0 {
+		t.Errorf("comeu %d de novo da mesma planta", got)
+	}
+	if w.crowded(100, 100) {
+		t.Error("o lugar da planta comida continua ocupado")
+	}
+}
+
+// BenchmarkForage mede uma busca por comida num mundo lotado de sementes
+// (que Forage não tira do lugar), numa tela de 1920x1080. O jogo faz uma busca
+// por Gopher em todo tick. Rode com: go test -run '^$' -bench Forage ./world
+func BenchmarkForage(b *testing.B) {
+	r := rand.New(rand.NewPCG(3, 4))
+	w := &World{target: 2000, chance: r.Float64, intn: r.IntN}
+	w.Resize(1920, 1080)
+	for _, p := range w.plants {
+		p.age = 0
+	}
+	for b.Loop() {
+		w.Forage(r.Float64()*1920, r.Float64()*1080, 32)
 	}
 }

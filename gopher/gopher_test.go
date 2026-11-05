@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"math"
 	"math/rand/v2"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -494,6 +495,58 @@ func TestCoincidentCentersDoNotCollide(t *testing.T) {
 
 	if math.IsNaN(a.x) || math.IsNaN(a.y) || !near(a.x, 400+step) {
 		t.Errorf("posição (%v, %v), esperado (%v, 500)", a.x, a.y, 400+step)
+	}
+}
+
+func TestDeadGophersAreNotObstacles(t *testing.T) {
+	// Mesma situação de TestCollisionBouncesLikeWall, mas b morreu de fome neste
+	// tick: ainda está na lista, mas já sumiu da tela, então a segue em frente.
+	a, b := twoGophers(400, 500, 0, 460, 500)
+	b.satiety = 0
+
+	a.move(a, b)
+
+	if a.heading != 0 || !near(a.x, 400+step) {
+		t.Errorf("heading = %v, x = %v: a deveria passar pelo Gopher morto", a.heading, a.x)
+	}
+}
+
+func TestReactionsNeverLengthenTheStep(t *testing.T) {
+	// collisionRange conta com isso para saber quem está perto o bastante para
+	// colidir. Uma reação que alongue o passo precisa aumentar o alcance também.
+	for i, react := range reactions {
+		for angle := 0; angle < 360; angle += 15 {
+			sin, cos := math.Sincos(radians(float64(angle)))
+			a, b := twoGophers(400, 500, 0, 400+60*cos, 500+60*sin)
+			for heading := 0; heading < 360; heading += 15 {
+				hs, hc := math.Sincos(radians(float64(heading)))
+				dx, dy := react(a, b, step*hc, step*hs)
+				if got := math.Hypot(dx, dy); got > step+eps {
+					t.Fatalf("reação %d, outro a %dº, passo a %dº: o passo foi de %v para %v",
+						i, angle, heading, step, got)
+				}
+			}
+		}
+	}
+}
+
+func TestAroundFindsEveryGopherInCollisionRange(t *testing.T) {
+	// Muitos Gophers numa tela pequena, depois de andarem um pouco: a grade da
+	// colônia precisa trazer, para cada um, todos os que ele pode tocar.
+	c := newTestColony(300, 71, 72)
+	c.Resize(800, 600)
+	for range 10 * walkEveryTicks {
+		c.Update(nil)
+	}
+
+	for i, g := range c.gophers {
+		around := c.around(g)
+		for j, o := range c.gophers {
+			if math.Hypot(g.x-o.x, g.y-o.y) <= g.collisionRange() && !slices.Contains(around, o) {
+				t.Fatalf("around(Gopher %d) não trouxe o Gopher %d, a %.1f dele (alcance %.1f)",
+					i, j, math.Hypot(g.x-o.x, g.y-o.y), g.collisionRange())
+			}
+		}
 	}
 }
 
@@ -1338,5 +1391,16 @@ func TestNewGopherDrawsEmotionAtBirth(t *testing.T) {
 	}
 	if len(seen) != numEmotions {
 		t.Errorf("sorteadas %d emoções em 500 Gophers, esperado todas as %d", len(seen), numEmotions)
+	}
+}
+
+// BenchmarkColonyUpdate mede um tick de uma colônia lotada: MaxGophers adultos,
+// mais do que cabe sem sobreposição numa tela de 1920x1080, esbarrando uns nos
+// outros o tempo todo. Rode com: go test -run '^$' -bench Colony ./gopher
+func BenchmarkColonyUpdate(b *testing.B) {
+	c := newTestColony(MaxGophers, 61, 62)
+	c.Resize(1920, 1080)
+	for b.Loop() {
+		c.Update(nil)
 	}
 }

@@ -4,6 +4,8 @@ import (
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
+
+	"gophers-life-game/internal/grid"
 )
 
 // Colony é um grupo de Gophers que dividem a mesma tela e colidem entre si.
@@ -17,7 +19,18 @@ type Colony struct {
 	spawned  bool    // os Gophers já foram espalhados pela tela
 	hovered  *Gopher // o Gopher sob o mouse, ou nil; seu nome é mostrado por Draw
 	selected *Gopher // o Gopher clicado, ou nil; fica marcado e pode ser acompanhado
+
+	// grid guarda cada Gopher na parte da tela em que ele está, para que cada um
+	// só teste a colisão com os que estão perto (ver around), em vez de com todos.
+	// nearby é a lista devolvida por around, reaproveitada de uma busca para a
+	// outra.
+	grid   *grid.Grid[*Gopher]
+	nearby []*Gopher
 }
+
+// gridCell é o lado das células da grade da colônia: o diâmetro da hit box de
+// um adulto. Cada busca (ver collisionRange) cobre de 3x3 a 4x4 células.
+const gridCell = 2 * hitboxRadius
 
 // MaxGophers é o maior número de Gophers que uma colônia comporta.
 const MaxGophers = 1000
@@ -36,12 +49,22 @@ func (c *Colony) Resize(width, height float64) {
 	for _, g := range c.gophers {
 		g.Resize(width, height)
 	}
+	c.grid = grid.New[*Gopher](width, height, gridCell)
 	if !c.spawned {
-		for i, g := range c.gophers {
-			g.Spawn(c.gophers[:i]...) // sem nascer em cima dos que já foram espalhados
+		for _, g := range c.gophers {
+			g.spawn(c) // sem nascer em cima dos que já foram espalhados, que estão na grade
+			c.grid.Add(g, g.x, g.y)
 		}
 		c.spawned = true
 	}
+}
+
+// around devolve os Gophers das células da grade em volta de g: todos os que
+// ele pode tocar no próximo passo (ver collisionRange) e alguns mais distantes.
+// A lista só vale até a próxima chamada, que a reaproveita.
+func (c *Colony) around(g *Gopher) []*Gopher {
+	c.nearby = c.grid.AppendNear(c.nearby[:0], g.x, g.y, g.collisionRange())
+	return c.nearby
 }
 
 // Forager é o que um Gopher encontra ao andar: dado o círculo que ele ocupa
@@ -55,8 +78,17 @@ func (c *Colony) Update(forage Forager) {
 	if !c.spawned {
 		return
 	}
+
+	// A grade é refeita no começo de cada tick, com as posições de agora, e
+	// acompanha cada Gopher que anda, para que os seguintes o vejam onde ele está.
+	c.grid.Clear()
 	for _, g := range c.gophers {
-		g.Update(c.gophers...)
+		c.grid.Add(g, g.x, g.y)
+	}
+	for _, g := range c.gophers {
+		x, y := g.x, g.y
+		g.update(c)
+		c.grid.Move(g, x, y, g.x, g.y)
 		if forage != nil && g.Alive() {
 			g.Eat(forage(g.x, g.y, g.hitbox()))
 		}

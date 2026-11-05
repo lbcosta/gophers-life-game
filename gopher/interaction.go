@@ -8,13 +8,39 @@ func (g *Gopher) touchDistance(other *Gopher) float64 {
 	return g.hitbox() + other.hitbox()
 }
 
+// collisionRange é a maior distância entre o centro de g e o de um Gopher que o
+// próximo passo de g pode tocar. O passo leva g a até stepSize de onde está, e
+// ali ele toca quem estiver a menos de touchDistance, que é no máximo g.hitbox()
+// + hitboxRadius (a hit box de um adulto).
+func (g *Gopher) collisionRange() float64 {
+	return g.hitbox() + hitboxRadius + g.stepSize
+}
+
+// neighbors diz com quem um Gopher pode esbarrar. Colony responde consultando a
+// grade em que guarda os Gophers (ver Colony.around); everyone, uma lista
+// simples, responde com todos.
+type neighbors interface {
+	// around devolve os Gophers que g pode tocar no próximo passo: todos os que
+	// estão a até g.collisionRange() dele. Pode trazer também o próprio g e
+	// outros mais distantes, que move e overlapsAny descartam.
+	around(g *Gopher) []*Gopher
+}
+
+// everyone é uma lista de Gophers em que qualquer um pode esbarrar em qualquer
+// outro.
+type everyone []*Gopher
+
+func (e everyone) around(*Gopher) []*Gopher { return e }
+
 // reaction é um possível desfecho de uma colisão. Recebe o Gopher g, aquele com
 // quem ele colide (other) e o deslocamento (dx, dy) que g faria neste passo, e
 // devolve o deslocamento que g fará de fato.
 type reaction func(g, other *Gopher, dx, dy float64) (float64, float64)
 
 // reactions são os desfechos que interact sorteia, todos com a mesma chance.
-// Para acrescentar um comportamento, basta escrever a função e listá-la aqui.
+// Para acrescentar um comportamento, basta escrever a função e listá-la aqui. Ela
+// pode mudar a direção do passo e encurtá-lo, mas não alongá-lo (ver
+// collisionRange); os testes conferem isso.
 var reactions = []reaction{asWall}
 
 // interact sorteia como g reage a uma colisão com other e devolve o novo

@@ -158,12 +158,18 @@ const spawnAttempts = 100
 // também o ritmo dos passos, para que vários Gophers não andem em sincronia.
 // Deve ser chamado depois de Resize, que informa o tamanho da tela.
 func (g *Gopher) Spawn(others ...*Gopher) {
+	g.spawn(everyone(others))
+}
+
+// spawn é Spawn, mas pergunta a n quem está perto de cada posição sorteada, em
+// vez de comparar com todos os Gophers.
+func (g *Gopher) spawn(n neighbors) {
 	for range spawnAttempts {
 		r := g.hitbox()
 		g.x = r + g.chance()*(g.width-2*r)
 		g.y = r + g.chance()*(g.height-2*r)
 		g.keepInside() // necessário quando a tela é pequena demais
-		if !g.overlapsAny(others) {
+		if !g.overlapsAny(n.around(g)) {
 			break
 		}
 	}
@@ -185,6 +191,12 @@ func (g *Gopher) overlapsAny(others []*Gopher) bool {
 // ao sentido do movimento. Um Gopher morto não faz nada. others são os Gophers com quem ele pode colidir; o
 // próprio Gopher pode estar entre eles, e é ignorado.
 func (g *Gopher) Update(others ...*Gopher) {
+	g.update(everyone(others))
+}
+
+// update é Update, mas pergunta a n com quem o Gopher pode colidir, e só quando
+// ele vai dar um passo, que é quando precisa saber.
+func (g *Gopher) update(n neighbors) {
 	if !g.Alive() {
 		return
 	}
@@ -192,7 +204,7 @@ func (g *Gopher) Update(others ...*Gopher) {
 	g.ticks++
 	g.keepInside() // a hit box cresce, e o Gopher não pode ficar com ela fora da tela
 	if g.ticks%walkEveryTicks == 0 {
-		g.move(others...)
+		g.move(n.around(g)...)
 	}
 	g.turnTowardsHeading()
 }
@@ -203,9 +215,11 @@ func (g *Gopher) Update(others ...*Gopher) {
 // o giro em [-maxTurn, maxTurn] graus. Depois anda stepSize pixels na direção
 // resultante.
 //
-// Se o passo levaria a hit box de g a colidir com a de outro Gopher, g reage
-// como sorteado por interact. Se levaria a hit box para fora da tela, o Gopher
-// quica na parede: a componente do movimento perpendicular a ela é invertida.
+// Se o passo levaria a hit box de g a colidir com a de outro Gopher vivo, g
+// reage como sorteado por interact. Os mortos não contam: quem morre de fome no
+// meio de um tick só sai da colônia no fim dele, mas já não aparece na tela. Se
+// o passo levaria a hit box para fora da tela, o Gopher quica na parede: a
+// componente do movimento perpendicular a ela é invertida.
 func (g *Gopher) move(others ...*Gopher) {
 	if g.chance() < turnChance {
 		g.heading = normalize(g.heading + float64(g.intn(2*maxTurn+1)-maxTurn))
@@ -215,7 +229,7 @@ func (g *Gopher) move(others ...*Gopher) {
 	dx, dy := g.stepSize*cos, g.stepSize*sin
 
 	for _, o := range others {
-		if o != g && g.collides(o, dx, dy) {
+		if o != g && o.Alive() && g.collides(o, dx, dy) {
 			dx, dy = g.interact(o, dx, dy)
 			g.heading = normalize(degrees(math.Atan2(dy, dx)))
 		}

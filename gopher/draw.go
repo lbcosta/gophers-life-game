@@ -1,7 +1,6 @@
 package gopher
 
 import (
-	"bytes"
 	"fmt"
 	"image/color"
 	"math"
@@ -9,7 +8,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
-	"golang.org/x/image/font/gofont/goregular"
+
+	"gophers-life-game/internal/circle"
+	"gophers-life-game/internal/fonts"
 )
 
 // Cores fixas do Gopher. A cor do corpo e das orelhas é de cada Gopher (ver Palette).
@@ -35,7 +36,7 @@ type part struct {
 	fill     fill
 	mirrored bool  // também desenha a cópia espelhada (cx e angle invertidos)
 	from     Stage // primeira fase em que a parte aparece; o zero (Baby) é o corpo
-	shiny    bool  // recebe um brilho (ver highlightCenters); só para partes circulares
+	shiny    bool  // recebe um brilho (ver highlightCenter); só para partes circulares
 }
 
 // fill é o papel de cor de uma parte. A cor de fato é resolvida ao desenhar, já
@@ -68,7 +69,7 @@ var parts = []part{
 	{cx: 0.46, cy: -0.9, rx: 0.33, ry: 0.2, angle: 17, fill: fillEye, from: Teen, mirrored: true},     // olhos
 	// Pupilas redondas e grandes (cerca de 45% do olho), na borda do olho e vazando
 	// cerca de 1px por ela, para dar o efeito de olhos esbugalhados. Cada uma
-	// recebe um brilho, desenhado à parte (ver highlightCenters).
+	// recebe um brilho, desenhado à parte (ver highlightCenter).
 	{cx: 0.582, cy: -0.956, rx: 0.15, ry: 0.15, angle: 0, fill: fillPupil, from: Teen, mirrored: true, shiny: true},
 	{cx: 0, cy: -0.97, rx: 0.08, ry: 0.06, angle: 0, fill: fillPupil, from: Adult}, // nariz
 }
@@ -206,85 +207,17 @@ func sprite(body color.RGBA, stage Stage) *ebiten.Image {
 	return sprites[key]
 }
 
-// circleKey identifica um círculo branco pré-desenhado: o raio, inteiro, e a
-// espessura do traço, se for um anel (0 é um disco cheio).
-type circleKey struct {
-	radius int
-	stroke float32
-}
-
-// circles guarda os círculos brancos já desenhados (ver circleImage).
-var circles = map[circleKey]*ebiten.Image{}
-
-// circleImage devolve o círculo branco descrito por key, com a borda suavizada,
-// desenhando-o se ainda não existir. A imagem tem uma folga em volta, para a
-// suavização e o traço, e o centro do círculo é o centro dela.
-func circleImage(key circleKey) *ebiten.Image {
-	if circles[key] == nil {
-		margin := int(math.Ceil(float64(key.stroke)/2)) + 1
-		size := 2 * (key.radius + margin)
-		img := ebiten.NewImage(size, size)
-		center, radius := float32(size)/2, float32(key.radius)
-		if key.stroke == 0 {
-			vector.FillCircle(img, center, center, radius, color.White, true)
-		} else {
-			vector.StrokeCircle(img, center, center, radius, key.stroke, color.White, true)
-		}
-		circles[key] = img
-	}
-	return circles[key]
-}
-
-// drawCircle pinta em screen um círculo de centro (cx, cy), raio r e cor clr:
-// um disco cheio se stroke for 0, ou um anel com traço de espessura stroke.
-//
-// Não usa o pacote vector a cada frame: a Ebitengine só consegue juntar desenhos vetoriais
-// seguidos, e cada DrawImage no meio (o sprite de um Gopher, por exemplo) a
-// obriga a refazer, só para os círculos pendentes, todo o processo da
-// suavização (várias passadas por uma imagem auxiliar). Com um círculo por
-// Gopher entre um sprite e outro, isso acontecia dezenas de vezes por frame e
-// o jogo travava assim que os Gophers cresciam. Em vez disso, copia um círculo
-// pronto (ver circleImage), reduzido ao raio r e pintado com clr: é um
-// DrawImage como os dos sprites, e a Ebitengine junta todos numa só chamada à
-// placa de vídeo.
-func drawCircle(screen *ebiten.Image, cx, cy, r, stroke float32, clr color.RGBA) {
-	if r <= 0 {
-		return
-	}
-	radius := int(math.Ceil(float64(r))) // o círculo nunca é ampliado, só reduzido um pouco
-	img := circleImage(circleKey{radius, stroke})
-	half := float64(img.Bounds().Dx()) / 2
-	scale := float64(r) / float64(radius)
-
-	op := &ebiten.DrawImageOptions{Filter: ebiten.FilterLinear}
-	op.GeoM.Translate(-half, -half)
-	op.GeoM.Scale(scale, scale)
-	op.GeoM.Translate(float64(cx), float64(cy))
-	// O mesmo que ScaleWithColor(clr), mas sem converter clr para color.Color,
-	// o que alocaria memória a cada círculo. color.RGBA já é pré-multiplicada,
-	// como ColorScale espera.
-	op.ColorScale.Scale(float32(clr.R)/0xff, float32(clr.G)/0xff, float32(clr.B)/0xff, float32(clr.A)/0xff)
-	screen.DrawImage(img, op)
-}
-
-// fillCircle pinta em screen um disco de centro (cx, cy), raio r e cor clr.
-func fillCircle(screen *ebiten.Image, cx, cy, r float32, clr color.RGBA) {
-	drawCircle(screen, cx, cy, r, 0, clr)
-}
-
 // Prerender desenha, uma única vez, o sprite de cada fase com figura para cada
-// cor da paleta e os discos de todos os raios que os Gophers usam, para que o
-// jogo não precise desenhá-los no meio da partida. Deve ser chamado com o jogo
-// já rodando.
+// cor da paleta e os discos de todos os raios que os Gophers usam (as bolinhas,
+// as sombras e os brilhos, ver circle), para que o jogo não precise desenhá-los
+// no meio da partida. Deve ser chamado com o jogo já rodando.
 func Prerender() {
 	for _, body := range Palette {
 		for _, stage := range figureStages {
 			sprite(body, stage)
 		}
 	}
-	for radius := 1; radius <= int(math.Ceil(float64(bodyRadius))); radius++ {
-		circleImage(circleKey{radius: radius})
-	}
+	circle.Prerender(bodyRadius)
 }
 
 // Draw pinta o Gopher em screen: a sombra e, por cima, o próprio Gopher. Para
@@ -297,7 +230,7 @@ func (g *Gopher) Draw(screen *ebiten.Image) {
 // drawShadow pinta a sombra do Gopher. Ela fica sempre no mesmo lado, já que a
 // luz não gira com ele.
 func (g *Gopher) drawShadow(screen *ebiten.Image) {
-	fillCircle(screen, float32(g.x)+shadowOffsetX, float32(g.y)+shadowOffsetY, g.bodySize(), shadowColor)
+	circle.Fill(screen, float32(g.x)+shadowOffsetX, float32(g.y)+shadowOffsetY, g.bodySize(), shadowColor)
 }
 
 // drawFigure pinta o Gopher centrado na posição atual. Bebês e crianças são uma
@@ -307,7 +240,7 @@ func (g *Gopher) drawShadow(screen *ebiten.Image) {
 func (g *Gopher) drawFigure(screen *ebiten.Image) {
 	stage, size := g.Stage(), g.bodySize()
 	if stage < Teen {
-		fillCircle(screen, float32(g.x), float32(g.y), size, g.body)
+		circle.Fill(screen, float32(g.x), float32(g.y), size, g.body)
 		return
 	}
 
@@ -321,7 +254,7 @@ func (g *Gopher) drawFigure(screen *ebiten.Image) {
 
 	for _, pupil := range shinyCenters {
 		h := highlightCenter(pupil, g.facing)
-		fillCircle(screen, float32(g.x)+h.x*size, float32(g.y)+h.y*size,
+		circle.Fill(screen, float32(g.x)+h.x*size, float32(g.y)+h.y*size,
 			highlightRadius*size, highlightColor)
 	}
 }
@@ -338,24 +271,10 @@ var (
 	nameBackColor = color.RGBA{0, 0, 0, 170}
 )
 
-// nameFace é a fonte do nome, criada na primeira vez em que é preciso.
-var nameFace *text.GoTextFace
-
-func nameFont() *text.GoTextFace {
-	if nameFace == nil {
-		source, err := text.NewGoTextFaceSource(bytes.NewReader(goregular.TTF))
-		if err != nil {
-			panic(err) // a fonte está embutida no programa: não deve falhar
-		}
-		nameFace = &text.GoTextFace{Source: source, Size: nameFontSize}
-	}
-	return nameFace
-}
-
 // drawName escreve o nome do Gopher numa etiqueta logo acima dele, centrada nele
 // e sempre inteira dentro da tela. Se não couber acima, vai para baixo.
 func (g *Gopher) drawName(screen *ebiten.Image) {
-	face := nameFont()
+	face := fonts.Regular(nameFontSize)
 	w, h := text.Measure(g.name, face, 0)
 	boxW, boxH := float32(w)+2*namePadding, float32(h)+2*namePadding
 
@@ -369,7 +288,7 @@ func (g *Gopher) drawName(screen *ebiten.Image) {
 	y = min(max(y, 0), float32(bounds.Dy())-boxH)
 
 	// Em pixels inteiros, o texto fica nítido e a etiqueta não precisa de
-	// suavização: sem ela, vector.FillRect vira um DrawImage comum (ver drawCircle).
+	// suavização: sem ela, vector.FillRect vira um DrawImage comum (ver circle).
 	x, y = float32(math.Round(float64(x))), float32(math.Round(float64(y)))
 	vector.FillRect(screen, x, y, boxW, boxH, nameBackColor, false)
 
@@ -385,5 +304,5 @@ var selectionColor = color.RGBA{230, 230, 230, 230}
 
 // drawSelection desenha um anel ao redor da hit box do Gopher.
 func (g *Gopher) drawSelection(screen *ebiten.Image) {
-	drawCircle(screen, float32(g.x), float32(g.y), float32(g.hitbox())+3, 2, selectionColor)
+	circle.Stroke(screen, float32(g.x), float32(g.y), float32(g.hitbox())+3, 2, selectionColor)
 }
