@@ -1114,11 +1114,11 @@ func TestEatAddsSatietyButNotToTheDead(t *testing.T) {
 func TestColonyRemovesStarvedGophersAndFeedsTheRest(t *testing.T) {
 	c := newTestColony(3, 31, 32)
 	c.Resize(800, 600)
-	dying, fed := c.gophers[0], c.gophers[1]
+	starved, fed := c.gophers[0], c.gophers[1]
 
 	// Os dois estão a um passo de perder 1 de saciedade. O primeiro, com só 1,
 	// morre; o segundo tem 2 e come mais 2.
-	dying.satiety, dying.steps = 1, stepsPerSatiety-1
+	starved.satiety, starved.steps = 1, stepsPerSatiety-1
 	fed.satiety, fed.steps = 2, stepsPerSatiety-1
 	forage := func(x, y, r float64, room int) int {
 		if x == fed.x && y == fed.y {
@@ -1134,7 +1134,7 @@ func TestColonyRemovesStarvedGophersAndFeedsTheRest(t *testing.T) {
 		t.Fatalf("%d Gophers vivos, esperado 2", len(c.Gophers()))
 	}
 	for _, g := range c.Gophers() {
-		if g == dying {
+		if g == starved {
 			t.Error("o Gopher que morreu de fome continua na colônia")
 		}
 	}
