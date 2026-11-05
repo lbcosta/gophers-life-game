@@ -1310,6 +1310,26 @@ func TestEventString(t *testing.T) {
 	}
 }
 
+// Os tipos válidos devolvem a frase sem o nome, como o Speed devolve "lento"
+// (issue #8, pergunta 1); os inválidos, dos dois lados da tabela, devolvem
+// EventKind(n), como pede a convenção de enums.
+func TestEventKindString(t *testing.T) {
+	cases := []struct {
+		kind EventKind
+		want string
+	}{
+		{BecameHungry, "está passando fome"},
+		{Starved, "morreu de fome"},
+		{EventKind(-1), "EventKind(-1)"},
+		{numEventKinds, "EventKind(2)"},
+	}
+	for _, c := range cases {
+		if got := c.kind.String(); got != c.want {
+			t.Errorf("EventKind(%d).String() = %q, esperado %q", int(c.kind), got, c.want)
+		}
+	}
+}
+
 func TestParseNamesSkipsCommentsAndBlankLines(t *testing.T) {
 	got := parseNames("# comentário\n\nAna\n  Bia  \n#Outro\nCaio\n")
 	want := []string{"Ana", "Bia", "Caio"}
