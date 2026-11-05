@@ -44,8 +44,10 @@
 ## Saciedade, Fome e morte
 
 - **GOP-27** — O Gopher perde 1 ponto de Saciedade a cada `gopher.stepsPerSatiety` Passos, seja qual for a Velocidade ou a fase da vida. O primeiro ponto cai depois do número de Passos sorteado em GOP-10.
-- **GOP-28** — A Saciedade não tem teto.
-- **GOP-29** — Comer soma à Saciedade o valor de cada Planta pronta comida (PLA-08). Um Gopher morto não come.
+- **GOP-28** — A Saciedade tem teto `gopher.maxSatiety`. Comer nunca a deixa acima dele: o que passar do teto se perde.
+- **GOP-29** — Comer soma à Saciedade o valor de cada Planta pronta comida (PLA-08), sem passar do teto (GOP-28). Um Gopher morto não come.
+- **GOP-34** — Um Gopher com a Saciedade no teto está cheio e não come: as Plantas prontas sob ele continuam no Mundo. As Plantas crescendo continuam sendo pisoteadas.
+- **GOP-35** — Numa mesma Busca por comida, o Gopher come as Plantas prontas uma de cada vez enquanto não está cheio. As que sobram quando ele enche continuam no Mundo.
 - **GOP-30** — Um Gopher vivo está com Fome quando a Saciedade é `gopher.hungryAt` ou menos.
 - **GOP-31** — Quando a Saciedade chega a zero, é a Morte por fome: o Gopher para na hora, deixa de aparecer na Tela e sai da Colônia no fim do Tick em que morreu.
 
@@ -59,6 +61,7 @@
 | Parâmetro | Valor | Significado |
 |---|---|---|
 | `gopher.initialSatiety` | 10 | Saciedade ao nascer |
+| `gopher.maxSatiety` | 10 | Teto da Saciedade |
 | `gopher.stepsPerSatiety` | 1000 | Passos para perder 1 ponto de Saciedade (cerca de 16,7 s com um Passo por Tick) |
 | `gopher.hungryAt` | 3 | Saciedade em que a Fome começa |
 | `gopher.walkEveryTicks` | 1 | Ticks entre dois Passos |

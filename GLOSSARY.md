@@ -81,6 +81,9 @@ As Idades, sorteadas no nascimento, em que um Gopher ou uma Planta entra em cada
 O quanto um Gopher está alimentado. Chegar a zero é a Morte por fome.
 _Evite_: energia, vida
 
+**Cheio**:
+Um Gopher com a Saciedade no teto.
+
 **Fome** (`Hungry`):
 O estado de um Gopher vivo com pouca Saciedade (3 ou menos). Na Tela aparece como "está passando fome".
 _Evite_: faminto, starving
