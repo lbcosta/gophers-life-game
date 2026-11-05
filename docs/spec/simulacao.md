@@ -9,15 +9,15 @@
 
 ## Início e mudança de tamanho
 
-- **SIM-05** — Enquanto o tamanho da Tela não é conhecido, nada anda e nada nasce, e só o gramado aparece.
-- **SIM-06** — Quando o tamanho da Tela fica conhecido pela primeira vez, o Mundo planta as plantas iniciais (PLA-05) e a Colônia espalha os Gophers (GOP-09).
+- **SIM-05** — Enquanto o tamanho da Tela não é conhecido, nada anda e nada nasce, e só o Gramado aparece.
+- **SIM-06** — Quando o tamanho da Tela fica conhecido pela primeira vez, o Mundo planta as Plantas iniciais (PLA-05) e a Colônia espalha os Gophers (GOP-09).
 - **SIM-07** — Se a Tela mudar de tamanho depois disso, os Gophers são trazidos para dentro dela, as Plantas que ficaram fora somem (PLA-09), e nada nasce por causa da mudança.
 
 ## População
 
 - **SIM-08** — A Colônia começa com `main.gopherCount` Gophers e comporta no máximo `gopher.MaxGophers`. Um pedido maior é cortado nesse limite, e um negativo vira zero.
 - **SIM-09** — A meta do Mundo é ter `main.gopherCount × game.plantsPerGopher` Plantas. Ela é calculada uma vez, no início, e não acompanha os Gophers vivos.
-- **SIM-10** — Não há nascimentos depois do início: a Colônia só diminui. Se todos morrerem, as Plantas continuam crescendo num gramado vazio.
+- **SIM-10** — Não há nascimentos depois do início: a Colônia só diminui. Se todos morrerem, as Plantas continuam crescendo num Gramado vazio.
 
 ## Ordem de um Tick
 
