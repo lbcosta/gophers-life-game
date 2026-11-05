@@ -38,4 +38,4 @@ Screenshots e perfis vão para o scratchpad ou para `/tmp`, nunca para o reposit
 ## Receitas
 
 - **Critério visual:** `GALLIUM_DRIVER=d3d12 go run ./cmd/harness -n 40 -advance 3700 -select -shot <arquivo>`. Abra a imagem com Read e amplie os recortes que precisar conferir.
-- **Desempenho antes e depois:** `GALLIUM_DRIVER=d3d12 go run ./cmd/harness -n 1000 -advance 3700 -dur 8s` e `make bench`, uma vez sem a mudança e outra com ela. Os dois resultados vão para o PR (DES-07).
+- **Desempenho antes e depois:** `GALLIUM_DRIVER=d3d12 go run ./cmd/harness -n 1000 -advance 3700 -dur 8s` e `make bench`, pelo menos três rodadas sem a mudança e três com ela, na mesma sessão. Todas as rodadas vão para o PR (DES-07): o FPS varia entre rodadas, e a referência de DES-01 é só uma ordem de grandeza.
