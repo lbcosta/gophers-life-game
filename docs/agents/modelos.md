@@ -8,8 +8,10 @@ Os valores ficam no frontmatter de cada agente, em `.claude/agents/`, e este arq
 | documentador: conferência e release | Opus 5.5 | `low` | Tarefa simples e verificável. O `/pipeline` pede esse esforço na chamada |
 | testador | Opus 5.5 | `high` | Os testes são o oráculo do ticket, e nada além da revisão confere um teste errado |
 | programador | Sonnet 5.5 | `medium`, `high` na nova tentativa | Tickets pequenos, com os testes como alvo, e o revisor confere tudo depois |
-| revisor | Fable 5.1 | `medium` | Último portão antes do merge automático. É o modelo mais capaz e é diferente de quem escreveu o código e os testes |
+| revisor | Opus 5.5 | `high` | Último portão antes do merge automático: o modelo mais capaz disponível, em esforço alto. É diferente do modelo do programador, cujo código ele revisa |
 | sessão principal (orquestrador) | o da sessão | `medium` sugerido | Trabalho procedural: rótulos, git e encaminhamento |
+
+O Fable 5.1 seria a primeira escolha para o revisor, mas o mantenedor não tem acesso a ele (05/11/2026). Sem o Fable, o revisor usa o mesmo modelo do testador. O contexto isolado e o prompt próprio de cada papel atenuam esse viés.
 
 ## Evidências
 
@@ -29,12 +31,9 @@ Fontes: as páginas da Anthropic sobre [modelos](https://platform.claude.com/doc
 - **Modelo menor com a ajuda de testes:**
   - num conjunto de tarefas de programação que os dois modelos mais fortes quase resolvem por inteiro, o de baixo, no esforço padrão, igualou o de cima por uma fração do custo;
   - rodar tudo num esforço menor e repetir só as falhas num esforço maior manteve o acerto por pouco mais da metade do custo. É a nova tentativa do programador em `high`.
-- **Fable 5.1:**
-  - é o modelo mais capaz, e a revisão de código e a depuração estão entre os maiores ganhos dele;
-  - em esforço baixo, costuma competir em custo por tarefa com o Opus e o Sonnet, com desempenho melhor;
-  - verificadores em subagentes de contexto novo tendem a superar a autocrítica;
-  - sem uma instrução de escopo, tende a escrever testes além do pedido, o que pesou contra ele no papel de testador.
-- **Viés de autopreferência:** avaliadores LLM reconhecem e favorecem os próprios textos ([Panickssery, Bowman e Feng, NeurIPS 2024](https://arxiv.org/abs/2404.13076)). Por isso o revisor usa um modelo diferente do testador e do programador, e o testador, um diferente do programador.
+- **Fable 5.1:** é o modelo mais capaz, e a revisão de código e a depuração estão entre os maiores ganhos dele. Em esforço baixo, costuma competir em custo por tarefa com o Opus e o Sonnet, com desempenho melhor. Hoje está fora do alcance do mantenedor.
+- **Verificação independente:** a Anthropic relata que verificadores em subagentes de contexto novo tendem a superar a autocrítica.
+- **Viés de autopreferência:** avaliadores LLM reconhecem e favorecem os próprios textos ([Panickssery, Bowman e Feng, NeurIPS 2024](https://arxiv.org/abs/2404.13076)). Com dois modelos capazes disponíveis, as diferenças ficaram onde pesam mais. O revisor usa um modelo diferente do programador, cujo código é o principal objeto da revisão. O testador também usa um modelo diferente do programador, para que os testes e o código não compartilhem a mesma leitura errada da spec.
 - **Subagentes do Claude Code:** o frontmatter aceita `model` (apelido ou ID completo) e `effort`, e o `effort` da definição sobrepõe o da sessão ([documentação](https://code.claude.com/docs/en/sub-agents)).
 
 ## Quando revisar
@@ -42,4 +41,5 @@ Fontes: as páginas da Anthropic sobre [modelos](https://platform.claude.com/doc
 - **Saiu um modelo novo:** refaça a escolha comparando o custo por ticket concluído, não o preço por token.
 - **O revisor barra falhas que um teste deveria ter pegado:** suba o esforço do testador.
 - **O programador costuma precisar de nova tentativa:** comece em `high` ou troque para o Opus 5.5 em `medium`.
-- **O custo ou o limite de uso pesa:** o primeiro passo é pôr o revisor no Opus 5.5 em `high`.
+- **O Fable 5.1 fica disponível:** ele é o candidato natural para o revisor, e com ele o revisor também deixa de usar o mesmo modelo do testador.
+- **O custo ou o limite de uso pesa:** o primeiro passo é baixar o revisor para `medium`, o padrão do Opus 5.5.

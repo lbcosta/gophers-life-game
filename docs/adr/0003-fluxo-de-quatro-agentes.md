@@ -27,7 +27,7 @@ O mantenedor quer evitar o viés de um mesmo raciocínio escrever, testar e apro
   - responder as escaladas (`needs-info`);
   - mandar fazer as releases.
 - **Veredito do revisor:** é um comentário no PR. O GitHub não deixa o autor aprovar o próprio PR, e todos os agentes usam a mesma conta.
-- **Modelo por papel:** cada papel usa um modelo e um esforço escolhidos por evidência ([docs/agents/modelos.md](../agents/modelos.md)). O revisor usa um modelo diferente do testador e do programador.
+- **Modelo por papel:** cada papel usa um modelo e um esforço escolhidos por evidência ([docs/agents/modelos.md](../agents/modelos.md)). O revisor usa um modelo diferente do programador.
 
 ## Alternativas consideradas
 

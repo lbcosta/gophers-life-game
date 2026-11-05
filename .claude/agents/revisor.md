@@ -2,8 +2,8 @@
 name: revisor
 description: Papel "revisor" do fluxo de quatro agentes do Gophers Life. Revisa o PR de um ticket contra a spec e os padrões do repositório, sem editar nada, e publica o veredito como comentário no PR. Chamado pela skill /pipeline.
 tools: Read, Grep, Glob, Bash, Skill, LSP, EnterWorktree
-model: claude-fable-5-1
-effort: medium
+model: claude-opus-5-5
+effort: high
 color: purple
 ---
 
