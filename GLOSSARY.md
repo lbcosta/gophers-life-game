@@ -78,11 +78,11 @@ _Evite_: estágio, Fase da planta
 As Idades, sorteadas no nascimento, em que um Gopher ou uma Planta entra em cada fase.
 
 **Saciedade** (`satiety`):
-O quanto um Gopher está alimentado. Chegar a zero é a Morte por fome.
+O quanto um Gopher está alimentado, de zero até o teto (10). Chegar a zero é a Morte por fome.
 _Evite_: energia, vida
 
 **Cheio**:
-Um Gopher com a Saciedade no teto.
+Um Gopher com a Saciedade no teto. Ele não come e deixa as Plantas prontas para os outros.
 
 **Fome** (`Hungry`):
 O estado de um Gopher vivo com pouca Saciedade (3 ou menos). Na Tela aparece como "está passando fome".
@@ -100,7 +100,7 @@ _Evite_: morte (sem dizer a causa)
 O efeito de um Gopher, a cada Tick, sobre as Plantas sob a Hit box dele: come as prontas enquanto não está Cheio, pisoteia as que estão crescendo e não mexe nas sementes.
 
 **Comer** (`Eat`):
-Passar sobre uma Planta pronta e ganhar a Saciedade dela.
+Passar sobre uma Planta pronta, sem estar Cheio, e ganhar a Saciedade dela até o teto. O que passa do teto se perde.
 
 **Pisotear**:
 Passar sobre uma Planta crescendo, que some sem alimentar ninguém.
