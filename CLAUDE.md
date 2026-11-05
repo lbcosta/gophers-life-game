@@ -51,6 +51,7 @@ Os commits são assinados pelo 1Password, e a assinatura faz parte do commit. De
 ## Convenções de código
 
 - Comentários e documentação em português, explicando o porquê. Identificadores em inglês. "Gopher" sempre com inicial maiúscula.
+- Comentários quebram em até 80 colunas, contando o tab como 4. A régua vale para os comentários escritos ou mexidos a partir de agora: ninguém requebra um arquivo inteiro só por ela.
 - `Update` muda o estado; `Draw` só desenha.
 - O tempo é contado em Ticks, 60 por segundo. Segundos só aparecem na tela.
 - A lógica usa `float64`, e o `float32` fica nas chamadas de desenho.
