@@ -6,8 +6,10 @@ package spectable
 import (
 	"bufio"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -18,6 +20,11 @@ import (
 type Params map[string]float64
 
 const sectionHeading = "## Parâmetros"
+
+// numberFormat é o formato do Valor na spec: só o número, com ponto decimal.
+// O ParseFloat aceitaria também 9e1, 90., .5, +90, Inf e NaN, que a spec não
+// promete aceitar.
+var numberFormat = regexp.MustCompile(`^-?\d+(\.\d+)?$`)
 
 // knownPrefixes são os pacotes que têm teste de spec (docs/spec/README.md). Um
 // parâmetro com outro prefixo, ou sem prefixo, não seria conferido por teste
@@ -34,6 +41,9 @@ func Read(path string) (Params, error) {
 	}
 	defer f.Close()
 
+	// As mensagens citam só o nome do arquivo, como Diff, para não mudarem
+	// com a pasta de onde o teste do pacote roda.
+	path = filepath.Base(path)
 	params := Params{}
 	inSection, found := false, false
 	scanner := bufio.NewScanner(f)
@@ -73,7 +83,7 @@ func Read(path string) (Params, error) {
 			return nil, fmt.Errorf("%s:%d: o parâmetro %s não começa com um pacote conhecido (%s)", path, n, name, strings.Join(knownPrefixes, ", "))
 		}
 		v, err := strconv.ParseFloat(value, 64)
-		if err != nil {
+		if err != nil || !numberFormat.MatchString(value) {
 			return nil, fmt.Errorf("%s:%d: %s: o valor %q não é um número (use ponto decimal)", path, n, name, value)
 		}
 		if _, dup := params[name]; dup {
@@ -110,11 +120,11 @@ func Diff(file, pkg string, spec, code Params) []string {
 		if !strings.HasPrefix(name, prefix) {
 			continue
 		}
-		want, known := code[name]
+		inCode, known := code[name]
 		if !known {
 			msgs = append(msgs, fmt.Sprintf("%s: %s: a tabela cita um parâmetro que o teste não conhece", file, name))
-		} else if want != spec[name] {
-			msgs = append(msgs, fmt.Sprintf("%s: %s: a spec diz %s, o código diz %s", file, name, format(spec[name]), format(want)))
+		} else if inCode != spec[name] {
+			msgs = append(msgs, fmt.Sprintf("%s: %s: a spec diz %s, o código diz %s", file, name, format(spec[name]), format(inCode)))
 		}
 	}
 	for _, name := range sortedKeys(code) {
@@ -139,7 +149,10 @@ func sortedKeys(p Params) []string {
 // do arquivo.
 func Check(t testing.TB, pkg string, files map[string]Params) {
 	t.Helper()
-	for path, code := range files {
+	// Os arquivos em ordem alfabética, para as falhas saírem sempre na mesma
+	// ordem (o range de um map é aleatório).
+	for _, path := range slices.Sorted(maps.Keys(files)) {
+		code := files[path]
 		spec, err := Read(path)
 		if err != nil {
 			t.Errorf("%v", err)
