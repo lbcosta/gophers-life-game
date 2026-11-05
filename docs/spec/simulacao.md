@@ -16,7 +16,7 @@
 ## População
 
 - **SIM-08** — A Colônia começa com `main.gopherCount` Gophers e comporta no máximo `gopher.MaxGophers`. Um pedido maior é cortado nesse limite, e um negativo vira zero.
-- **SIM-09** — A meta do Mundo é ter `main.gopherCount × main.plantsPerGopher` Plantas. Ela é calculada uma vez, no início, e não acompanha os Gophers vivos.
+- **SIM-09** — A meta do Mundo é ter `main.gopherCount × game.plantsPerGopher` Plantas. Ela é calculada uma vez, no início, e não acompanha os Gophers vivos.
 - **SIM-10** — Não há nascimentos depois do início: a Colônia só diminui. Se todos morrerem, as Plantas continuam crescendo num gramado vazio.
 
 ## Ordem de um Tick

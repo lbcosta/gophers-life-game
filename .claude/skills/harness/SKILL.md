@@ -29,7 +29,7 @@ No WSL, rode sempre com `GALLIUM_DRIVER=d3d12` (o `make` não tem alvo para o ha
 
 Compilado com `-tags ebitenginedebug`, a Ebitengine imprime os comandos de desenho de cada frame, o que serve para contar as chamadas à placa de vídeo.
 
-O ms de draw é o tempo da CPU para emitir os comandos de desenho; o FPS é o que mede o frame inteiro. Os alocações por frame contam tudo o que o processo aloca, inclusive a Ebitengine.
+O ms de draw é o tempo da CPU para emitir os comandos de desenho; o FPS é o que mede o frame inteiro. As alocações por frame contam tudo o que o processo aloca, inclusive a Ebitengine.
 
 Screenshots e perfis vão para o scratchpad ou para `/tmp`, nunca para o repositório.
 
