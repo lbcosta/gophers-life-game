@@ -47,13 +47,16 @@ func Read(path string) (Params, error) {
 		if !inSection || !strings.HasPrefix(line, "|") {
 			continue
 		}
+		if isSeparator(line) {
+			continue
+		}
 		cells := strings.Split(strings.Trim(line, "|"), "|")
 		if len(cells) < 2 {
 			return nil, fmt.Errorf("%s:%d: linha da tabela sem valor", path, n)
 		}
 		name, value := strings.TrimSpace(cells[0]), strings.TrimSpace(cells[1])
-		if name == "Parâmetro" || strings.Trim(name, "-: ") == "" {
-			continue // cabeçalho e separador
+		if name == "Parâmetro" {
+			continue // cabeçalho
 		}
 		if len(name) < 3 || !strings.HasPrefix(name, "`") || !strings.HasSuffix(name, "`") {
 			return nil, fmt.Errorf("%s:%d: o parâmetro %q precisa estar entre crases", path, n, name)
@@ -66,6 +69,9 @@ func Read(path string) (Params, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s:%d: %s: o valor %q não é um número (use ponto decimal)", path, n, name, value)
 		}
+		if _, dup := params[name]; dup {
+			return nil, fmt.Errorf("%s:%d: o parâmetro %s aparece mais de uma vez na tabela", path, n, name)
+		}
 		params[name] = v
 	}
 	if err := scanner.Err(); err != nil {
@@ -75,6 +81,14 @@ func Read(path string) (Params, error) {
 		return nil, fmt.Errorf("%s: sem a seção %q", path, sectionHeading)
 	}
 	return params, nil
+}
+
+// isSeparator diz se a linha é o separador do cabeçalho (|---|:---:|). Olha a
+// linha inteira, e não só a primeira célula: uma linha com o parâmetro vazio
+// (| | 5 | x |) tem outros caracteres e precisa cair no erro de formato, em vez de
+// passar por separador.
+func isSeparator(line string) bool {
+	return strings.Contains(line, "-") && strings.Trim(line, "|-: ") == ""
 }
 
 func format(v float64) string { return strconv.FormatFloat(v, 'g', -1, 64) }
