@@ -159,7 +159,7 @@ func TestForageTramplesGrowingPlants(t *testing.T) {
 	w := newTestWorld(0)
 	plantAt(w, Carrot, 100, 100, 100)
 	if got := w.Forage(100, 100, 30, plenty); got != 0 || len(w.plants) != 0 {
-		t.Errorf("ganhou %d com %d plantas, esperado 0 e a planta desfeita", got, len(w.plants))
+		t.Errorf("ganhou %d com %d plantas, esperado 0 e a planta pisoteada", got, len(w.plants))
 	}
 }
 
@@ -206,8 +206,18 @@ func TestForageTakesWhatItRemovesOffTheGrid(t *testing.T) {
 }
 
 // Os testes abaixo cobrem o teto da Saciedade do lado do Mundo. O último
-// argumento de Forage é o quanto o Gopher ainda come até ficar cheio (o teto
-// menos a Saciedade dele): 0 para um Gopher cheio.
+// argumento de Forage é a Folga do Gopher (quanto falta para a Saciedade dele
+// chegar ao teto): 0 para um Gopher Cheio.
+
+func TestForageLeavesSeedsToAFullGopher(t *testing.T) {
+	// GOP-34 e PLA-08: a semente não sofre nada, e um Gopher Cheio (Folga 0)
+	// também não a afeta. Ele não ganha nada, e a semente continua no Mundo.
+	w := newTestWorld(0)
+	seed := plantAt(w, Potato, 100, 100, 0)
+	if got := w.Forage(100, 100, 30, 0); got != 0 || !slices.Contains(w.plants, seed) {
+		t.Errorf("Gopher Cheio ganhou %d com %d plantas, esperado 0 e a semente no Mundo", got, len(w.plants))
+	}
+}
 
 func TestForageLeavesReadyPlantsToAFullGopher(t *testing.T) {
 	// GOP-34: um Gopher cheio não come, e a Planta pronta continua no Mundo.

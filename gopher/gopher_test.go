@@ -1154,7 +1154,7 @@ func lonelyGopher(seed1, seed2 uint64, satiety int) (*Colony, *Gopher) {
 }
 
 // rememberRoom devolve um Forager que não dá comida nenhuma e anota, em rooms,
-// o quanto o Gopher ainda comia a cada Busca por comida.
+// a Folga do Gopher a cada Busca por comida.
 func rememberRoom(rooms *[]int) Forager {
 	return func(x, y, r float64, room int) int {
 		*rooms = append(*rooms, room)
@@ -1188,6 +1188,55 @@ func TestEatingNeverFillsSatietyAboveTheCap(t *testing.T) {
 		col.Update(func(x, y, r float64, room int) int { return c.eaten })
 		if g.Satiety() != c.want {
 			t.Errorf("com %d, comendo %d: saciedade %d, esperado %d", c.satiety, c.eaten, g.Satiety(), c.want)
+		}
+	}
+}
+
+func TestRoomIsWhatIsLeftUntilTheCap(t *testing.T) {
+	// GOP-28: a Folga é quanto falta para a Saciedade chegar ao teto 10, e é
+	// zero quando o Gopher está Cheio. Saciedade acima do teto só existe nos
+	// testes (como a dos helpers, math.MaxInt), e a Folga continua zero.
+	for _, c := range []struct{ satiety, room int }{
+		{9, 1},
+		{10, 0},
+		{math.MaxInt, 0},
+	} {
+		g := newTestGopher(800, 600, 0)
+		g.satiety = c.satiety
+		if got := g.Room(); got != c.room {
+			t.Errorf("com saciedade %d: Folga %d, esperado %d", c.satiety, got, c.room)
+		}
+	}
+}
+
+func TestEatNeverLowersSatiety(t *testing.T) {
+	// GOP-28 e GOP-29: comer só limita o que soma ao teto 10; nunca tira
+	// Saciedade. Um Gopher acima do teto (só possível em teste) continua com o
+	// que tinha, coma 0 ou 2.
+	for _, c := range []struct{ satiety, eaten, want int }{
+		{math.MaxInt, 0, math.MaxInt},
+		{math.MaxInt, 2, math.MaxInt},
+		{9, 2, 10}, // a batata enche o Gopher, e 1 se perde
+	} {
+		g := newTestGopher(800, 600, 0)
+		g.satiety = c.satiety
+		g.Eat(c.eaten)
+		if g.Satiety() != c.want {
+			t.Errorf("com %d, comendo %d: saciedade %d, esperado %d", c.satiety, c.eaten, g.Satiety(), c.want)
+		}
+	}
+}
+
+func TestColonyForagesWithTheGophersRoom(t *testing.T) {
+	// GOP-28 e GOP-34: a Colônia passa para a Busca por comida a Folga que o
+	// próprio Gopher calcula, inclusive para um Gopher acima do teto (Folga 0).
+	for _, satiety := range []int{10, 9, 4, math.MaxInt} {
+		col, g := lonelyGopher(45, 46, satiety)
+		want := []int{g.Room()}
+		var rooms []int
+		col.Update(rememberRoom(&rooms))
+		if !slices.Equal(rooms, want) {
+			t.Errorf("saciedade %d: buscas com %v, esperado %v (a Folga do Gopher)", satiety, rooms, want)
 		}
 	}
 }
