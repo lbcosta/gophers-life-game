@@ -50,7 +50,7 @@ func Read(path string) (Params, error) {
 	for n := 1; scanner.Scan(); n++ {
 		line := strings.TrimSpace(scanner.Text())
 		if strings.HasPrefix(line, "## ") {
-			inSection = line == sectionHeading
+			inSection = isSectionTitle(line)
 			found = found || inSection
 			continue
 		}
@@ -116,7 +116,7 @@ func format(v float64) string { return strconv.FormatFloat(v, 'g', -1, 64) }
 func Diff(file, pkg string, spec, code Params) []string {
 	prefix := pkg + "."
 	var msgs []string
-	for _, name := range sortedKeys(spec) {
+	for _, name := range slices.Sorted(maps.Keys(spec)) {
 		if !strings.HasPrefix(name, prefix) {
 			continue
 		}
@@ -127,7 +127,7 @@ func Diff(file, pkg string, spec, code Params) []string {
 			msgs = append(msgs, fmt.Sprintf("%s: %s: a spec diz %s, o código diz %s", file, name, format(spec[name]), format(inCode)))
 		}
 	}
-	for _, name := range sortedKeys(code) {
+	for _, name := range slices.Sorted(maps.Keys(code)) {
 		if _, ok := spec[name]; !ok {
 			msgs = append(msgs, fmt.Sprintf("%s: %s: o parâmetro falta na tabela", file, name))
 		}
@@ -135,17 +135,14 @@ func Diff(file, pkg string, spec, code Params) []string {
 	return msgs
 }
 
-func sortedKeys(p Params) []string {
-	keys := make([]string, 0, len(p))
-	for k := range p {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	return keys
+// isSectionTitle diz se a linha é o título "## Parâmetros". É o único lugar com
+// esse critério, usado por Read e por hasSection, para os dois concordarem.
+// Uma menção no meio do texto não conta.
+func isSectionTitle(line string) bool {
+	return strings.TrimSpace(line) == sectionHeading
 }
 
-// hasSection diz se o arquivo tem a seção "## Parâmetros" como título. Uma
-// menção no meio do texto não conta, igual em Read.
+// hasSection diz se o arquivo tem a seção "## Parâmetros" como título.
 func hasSection(path string) (bool, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -154,7 +151,7 @@ func hasSection(path string) (bool, error) {
 	defer f.Close()
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		if strings.TrimSpace(scanner.Text()) == sectionHeading {
+		if isSectionTitle(scanner.Text()) {
 			return true, nil
 		}
 	}
@@ -196,7 +193,7 @@ func Check(t testing.TB, pkg string, files map[string]Params) {
 			t.Error(msg)
 		}
 	}
-	for _, dir := range sortedDirs(dirs) {
+	for _, dir := range slices.Sorted(maps.Keys(dirs)) {
 		// ReadDir em vez de Glob: o Glob trata o caminho inteiro como padrão,
 		// e um "[", "*", "?" ou "\" no caminho do clone o faria devolver uma
 		// lista vazia, sem erro, e a conferência sumiria em silêncio.
@@ -221,13 +218,4 @@ func Check(t testing.TB, pkg string, files map[string]Params) {
 			}
 		}
 	}
-}
-
-func sortedDirs(m map[string]bool) []string {
-	dirs := make([]string, 0, len(m))
-	for d := range m {
-		dirs = append(dirs, d)
-	}
-	slices.Sort(dirs)
-	return dirs
 }
