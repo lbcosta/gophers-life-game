@@ -198,7 +198,7 @@ func Check(t testing.TB, pkg string, files map[string]Params) {
 	}
 	for _, dir := range sortedDirs(dirs) {
 		// ReadDir em vez de Glob: o Glob trata o caminho inteiro como padrão,
-		// e um "[", "*", "?" ou "\\" no caminho do clone o faria devolver uma
+		// e um "[", "*", "?" ou "\" no caminho do clone o faria devolver uma
 		// lista vazia, sem erro, e a conferência sumiria em silêncio.
 		entries, err := os.ReadDir(dir)
 		if err != nil {
