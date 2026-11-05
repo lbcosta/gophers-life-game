@@ -14,6 +14,10 @@ func newTestWorld(target int) *World {
 	return w
 }
 
+// plenty é o quanto ainda come um Gopher que, nos testes que não tratam do teto
+// da Saciedade, nunca fica cheio.
+const plenty = 100
+
 // plantAt põe em w uma planta do tipo kind na idade age, em (x, y).
 func plantAt(w *World, kind Kind, x, y float64, age int) *Plant {
 	p := &Plant{kind: kind, x: x, y: y, age: age, maturity: maturity{100, 200}}
@@ -146,7 +150,7 @@ func TestWorldDoesNothingBeforeResize(t *testing.T) {
 func TestForageIgnoresSeeds(t *testing.T) {
 	w := newTestWorld(0)
 	plantAt(w, Potato, 100, 100, 0)
-	if got := w.Forage(100, 100, 30); got != 0 || len(w.plants) != 1 {
+	if got := w.Forage(100, 100, 30, plenty); got != 0 || len(w.plants) != 1 {
 		t.Errorf("ganhou %d com %d plantas, esperado 0 e a semente intacta", got, len(w.plants))
 	}
 }
@@ -154,7 +158,7 @@ func TestForageIgnoresSeeds(t *testing.T) {
 func TestForageTramplesGrowingPlants(t *testing.T) {
 	w := newTestWorld(0)
 	plantAt(w, Carrot, 100, 100, 100)
-	if got := w.Forage(100, 100, 30); got != 0 || len(w.plants) != 0 {
+	if got := w.Forage(100, 100, 30, plenty); got != 0 || len(w.plants) != 0 {
 		t.Errorf("ganhou %d com %d plantas, esperado 0 e a planta desfeita", got, len(w.plants))
 	}
 }
@@ -163,7 +167,7 @@ func TestForageEatsReadyPlants(t *testing.T) {
 	for _, k := range Kinds {
 		w := newTestWorld(0)
 		plantAt(w, k, 100, 100, 200)
-		if got := w.Forage(110, 100, 30); got != k.Satiety() || len(w.plants) != 0 {
+		if got := w.Forage(110, 100, 30, plenty); got != k.Satiety() || len(w.plants) != 0 {
 			t.Errorf("%v: ganhou %d com %d plantas, esperado %d e a planta comida", k, got, len(w.plants), k.Satiety())
 		}
 	}
@@ -175,7 +179,7 @@ func TestForageOnlyTouchesPlantsUnderTheGopher(t *testing.T) {
 	plantAt(w, Potato, 300, 100, 200) // longe
 	plantAt(w, Grass, 105, 100, 100)  // sob o Gopher, crescendo
 	plantAt(w, Clover, 95, 100, 0)    // sob o Gopher, semente
-	if got := w.Forage(100, 100, 30); got != 2 {
+	if got := w.Forage(100, 100, 30, plenty); got != 2 {
 		t.Errorf("ganhou %d, esperado 2 (só a batata sob o Gopher)", got)
 	}
 	if len(w.plants) != 2 {
@@ -187,17 +191,77 @@ func TestForageTakesWhatItRemovesOffTheGrid(t *testing.T) {
 	w := newTestWorld(0)
 	plantAt(w, Potato, 100, 100, 200)
 
-	if got := w.Forage(100, 100, 30); got != Potato.Satiety() {
+	if got := w.Forage(100, 100, 30, plenty); got != Potato.Satiety() {
 		t.Fatalf("ganhou %d, esperado %d", got, Potato.Satiety())
 	}
 
 	// A planta comida não pode continuar na grade: nem ser comida de novo, nem
 	// impedir que outra nasça no lugar dela.
-	if got := w.Forage(100, 100, 30); got != 0 {
+	if got := w.Forage(100, 100, 30, plenty); got != 0 {
 		t.Errorf("comeu %d de novo da mesma planta", got)
 	}
 	if w.crowded(100, 100) {
 		t.Error("o lugar da planta comida continua ocupado")
+	}
+}
+
+// Os testes abaixo cobrem o teto da Saciedade do lado do Mundo. O último
+// argumento de Forage é o quanto o Gopher ainda come até ficar cheio (o teto
+// menos a Saciedade dele): 0 para um Gopher cheio.
+
+func TestForageLeavesReadyPlantsToAFullGopher(t *testing.T) {
+	// GOP-34: um Gopher cheio não come, e a Planta pronta continua no Mundo.
+	w := newTestWorld(0)
+	p := plantAt(w, Potato, 100, 100, 200)
+	if got := w.Forage(100, 100, 30, 0); got != 0 || !slices.Contains(w.plants, p) {
+		t.Errorf("Gopher cheio ganhou %d com %d plantas, esperado 0 e a batata pronta no Mundo", got, len(w.plants))
+	}
+}
+
+func TestFullGopherStillTramplesGrowingPlants(t *testing.T) {
+	// GOP-34 e PLA-08: cheio ou não, a Planta crescendo é pisoteada.
+	w := newTestWorld(0)
+	plantAt(w, Carrot, 100, 100, 100)
+	if got := w.Forage(100, 100, 30, 0); got != 0 || len(w.plants) != 0 {
+		t.Errorf("Gopher cheio ganhou %d com %d plantas, esperado 0 e a planta crescendo pisoteada", got, len(w.plants))
+	}
+}
+
+func TestForageFeedsAGopherShortOfFullWithTheWholePlant(t *testing.T) {
+	// GOP-28, GOP-29 e PLA-08: um Gopher com 9 (falta 1 para o teto 10) come a
+	// batata, que some e dá os 2 do Alimento. O que passa do teto se perde no
+	// Gopher, não no Mundo.
+	w := newTestWorld(0)
+	plantAt(w, Potato, 100, 100, 200)
+	if got := w.Forage(100, 100, 30, 1); got != 2 || len(w.plants) != 0 {
+		t.Errorf("faltando 1: ganhou %d com %d plantas, esperado 2 e a batata comida", got, len(w.plants))
+	}
+}
+
+func TestForageEatsReadyPlantsOneAtATimeUntilFull(t *testing.T) {
+	// GOP-35: o Gopher come as Plantas prontas uma de cada vez enquanto não está
+	// cheio, e as que sobram continuam no Mundo. Com duas batatas (2 cada):
+	// faltando 1, a primeira já enche; faltando 3, a primeira deixa faltar 1, e
+	// ele come a segunda também.
+	for _, c := range []struct {
+		room, want, left int
+	}{
+		{room: 1, want: 2, left: 1},
+		{room: 3, want: 4, left: 0},
+	} {
+		w := newTestWorld(0)
+		plantAt(w, Potato, 95, 100, 200)
+		plantAt(w, Potato, 105, 100, 200)
+		got := w.Forage(100, 100, 30, c.room)
+		if got != c.want || len(w.plants) != c.left {
+			t.Errorf("faltando %d: ganhou %d com %d plantas, esperado %d com %d", c.room, got, len(w.plants), c.want, c.left)
+			continue
+		}
+		for _, p := range w.plants {
+			if p.Stage() != Ready {
+				t.Errorf("faltando %d: sobrou uma planta %v, esperado a batata pronta", c.room, p.Stage())
+			}
+		}
 	}
 }
 
@@ -212,6 +276,6 @@ func BenchmarkForage(b *testing.B) {
 		p.age = 0
 	}
 	for b.Loop() {
-		w.Forage(r.Float64()*1920, r.Float64()*1080, 32)
+		w.Forage(r.Float64()*1920, r.Float64()*1080, 32, plenty)
 	}
 }
