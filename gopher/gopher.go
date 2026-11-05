@@ -12,7 +12,7 @@ import (
 
 // walkEveryTicks é de quantos em quantos ticks o Gopher dá um passo.
 // Com 60 ticks por segundo, 7 ticks equivalem a cerca de 8,6 passos por segundo.
-const walkEveryTicks = 7
+const walkEveryTicks = 1
 
 // hitboxRadius é o raio da hit box do Gopher adulto: um círculo de 64px de
 // diâmetro, centrado no corpo, que contém o desenho inteiro (corpo, orelhas e
@@ -24,7 +24,7 @@ const hitboxRadius = 32
 // (ver Eat).
 const (
 	initialSatiety  = 10
-	stepsPerSatiety = 100
+	stepsPerSatiety = 1000
 )
 
 // Parâmetros da caminhada. Os ângulos são em graus, com 0º apontando para a

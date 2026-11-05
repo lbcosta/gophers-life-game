@@ -22,7 +22,7 @@ var Speeds = []Speed{Slow, Normal, Fast}
 
 // speedSteps e speedNames são, para cada Speed, o passo em pixels e o nome.
 var (
-	speedSteps = [...]float64{Slow: 2.5, Normal: 4, Fast: 6}
+	speedSteps = [...]float64{Slow: 0.25, Normal: 0.5, Fast: 1.0}
 	speedNames = [...]string{Slow: "lento", Normal: "normal", Fast: "rápido"}
 )
 
