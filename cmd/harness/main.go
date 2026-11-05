@@ -49,7 +49,7 @@ type harness struct {
 	opts options
 
 	ready   bool
-	hovered *gopher.Gopher // o Gopher sob o mouse falso, seguido a cada Tick
+	hovered *gopher.Gopher // o Gopher marcado como Hover a cada Tick
 
 	frames int // frames desenhados desde o início
 	start  time.Time
@@ -78,8 +78,10 @@ func (h *harness) Update() error {
 
 	t := time.Now()
 	h.game.Simulate()
-	h.followHover()
+	// O relógio para aqui: o Hover é trabalho do harness, e DES-07 compara
+	// só o Tick do jogo.
 	d := time.Since(t)
+	h.followHover()
 
 	if h.opts.dur > 0 {
 		if !h.measuring && time.Since(h.start) >= warmup {
@@ -119,7 +121,8 @@ func (h *harness) setup() {
 	h.start = time.Now()
 }
 
-// followHover mantém o mouse falso em cima do Gopher escolhido, que anda.
+// followHover marca como Hover, a cada Tick, o Gopher escolhido, que anda. O
+// harness não mexe no mouse: fala direto com a Colônia.
 func (h *harness) followHover() {
 	if h.hovered != nil && h.hovered.Alive() {
 		x, y := h.hovered.Position()
@@ -161,22 +164,45 @@ func saveShot(screen *ebiten.Image, path string) error {
 	return f.Close()
 }
 
+// measurement reúne as contagens de uma medida, para a linha ser calculada
+// sem depender da janela.
+type measurement struct {
+	ticks, frames int
+	updateTime    time.Duration
+	drawTime      time.Duration
+	allocs        uint64
+	seconds       float64
+	alive         int
+}
+
+// measurementLine monta a linha da medida. Sem ticks, frames ou tempo não há
+// o que dividir, e a linha avisa em vez de imprimir divisões por zero.
+func measurementLine(m measurement) string {
+	if m.ticks == 0 || m.frames == 0 || m.seconds <= 0 {
+		return "medida vazia: aumente -dur"
+	}
+	return fmt.Sprintf("FPS %.1f | TPS %.1f | update %.3f ms/tick | draw %.3f ms/frame | %.1f alocações/frame | %d Gophers vivos",
+		float64(m.frames)/m.seconds,
+		float64(m.ticks)/m.seconds,
+		float64(m.updateTime.Microseconds())/1000/float64(m.ticks),
+		float64(m.drawTime.Microseconds())/1000/float64(m.frames),
+		float64(m.allocs)/float64(m.frames),
+		m.alive)
+}
+
 // report imprime a linha da medida.
 func (h *harness) report() {
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	secs := time.Since(h.measStart).Seconds()
-	if h.ticks == 0 || h.draws == 0 || secs <= 0 {
-		fmt.Println("medida vazia: aumente -dur")
-		return
-	}
-	fmt.Printf("FPS %.1f | TPS %.1f | update %.3f ms/tick | draw %.3f ms/frame | %.1f alocações/frame | %d Gophers vivos\n",
-		float64(h.draws)/secs,
-		float64(h.ticks)/secs,
-		float64(h.updateTime.Microseconds())/1000/float64(h.ticks),
-		float64(h.drawTime.Microseconds())/1000/float64(h.draws),
-		float64(m.Mallocs-h.mallocs0)/float64(h.draws),
-		len(h.game.Colony().Gophers()))
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	fmt.Println(measurementLine(measurement{
+		ticks:      h.ticks,
+		frames:     h.draws,
+		updateTime: h.updateTime,
+		drawTime:   h.drawTime,
+		allocs:     ms.Mallocs - h.mallocs0,
+		seconds:    time.Since(h.measStart).Seconds(),
+		alive:      len(h.game.Colony().Gophers()),
+	}))
 }
 
 func main() {
@@ -184,12 +210,27 @@ func main() {
 	flag.IntVar(&o.n, "n", 60, "número de Gophers")
 	flag.IntVar(&o.advance, "advance", 0, "ticks a avançar antes de mostrar a janela (3700 deixa todos adultos)")
 	flag.BoolVar(&o.selectOne, "select", false, "seleciona um Gopher, o que abre o Painel de perfil")
-	flag.BoolVar(&o.hover, "hover", false, "põe o mouse sobre outro Gopher")
+	flag.BoolVar(&o.hover, "hover", false, "marca outro Gopher como Hover, a cada Tick, enquanto ele anda (sem mexer no mouse)")
 	flag.StringVar(&o.shot, "shot", "", "salva o frame 30 neste arquivo PNG e sai")
-	flag.DurationVar(&o.dur, "dur", 0, "mede por esta duração (depois de 1s de aquecimento) e imprime FPS, TPS, ms e alocações")
+	flag.DurationVar(&o.dur, "dur", 0, "mede por esta duração (depois de 1s de aquecimento) e imprime FPS, TPS, ms e alocações; não combina com -shot")
 	flag.StringVar(&o.cpuprofile, "cpuprofile", "", "grava um perfil de CPU neste arquivo")
 	flag.Parse()
 
+	// -shot sai no frame 30, antes de a medida existir: com -dur, a linha
+	// nunca seria impressa. Recusa antes de abrir a janela.
+	if o.shot != "" && o.dur > 0 {
+		fmt.Fprintln(os.Stderr, "erro: -shot e -dur não podem vir juntos: o screenshot sai no frame 30 e a medida nunca seria impressa (e ler os pixels da tela distorceria a medida). Rode um de cada vez.")
+		os.Exit(2)
+	}
+
+	if err := run(o); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// run roda o harness e devolve o erro, em vez de chamar log.Fatal, para que
+// os defer (como o fechamento do perfil de CPU) rodem em qualquer caminho.
+func run(o options) error {
 	// DES-08: no WSL, sem este driver o Mesa desenha com a CPU e o FPS não vale.
 	if _, err := os.Stat("/dev/dxg"); err == nil && os.Getenv("GALLIUM_DRIVER") == "" {
 		fmt.Fprintln(os.Stderr, "aviso: GALLIUM_DRIVER não está definido; no WSL o desenho vai pela CPU (llvmpipe) e o FPS medido não é o da GPU (DES-08). Rode com GALLIUM_DRIVER=d3d12.")
@@ -198,20 +239,18 @@ func main() {
 	if o.cpuprofile != "" {
 		f, err := os.Create(o.cpuprofile)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
+		defer f.Close()
 		if err := pprof.StartCPUProfile(f); err != nil {
-			log.Fatal(err)
+			return err
 		}
-		defer func() {
-			pprof.StopCPUProfile()
-			f.Close()
-		}()
+		defer pprof.StopCPUProfile()
 	}
 
 	g, err := game.New(o.n)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	ebiten.SetWindowSize(windowW, windowH)
@@ -220,7 +259,7 @@ func main() {
 	ebiten.SetWindowTitle("Gophers Life (harness)")
 
 	if err := ebiten.RunGame(&harness{game: g, opts: o}); err != nil && err != ebiten.Termination {
-		pprof.StopCPUProfile()
-		log.Fatal(err)
+		return err
 	}
+	return nil
 }
