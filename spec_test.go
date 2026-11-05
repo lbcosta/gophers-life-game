@@ -12,13 +12,10 @@ import (
 func TestSpecParameterTablesMatchTheCode(t *testing.T) {
 	spectable.Check(t, "main", map[string]spectable.Params{
 		"docs/spec/simulacao.md": {
-			"main.gopherCount":     gopherCount,
-			"main.plantsPerGopher": plantsPerGopher,
+			"main.gopherCount": gopherCount,
 		},
-		"docs/spec/gophers.md": {},
-		"docs/spec/plantas.md": {},
-		"docs/spec/interface.md": {
-			"main.grassBrightness": grassBrightness,
-		},
+		"docs/spec/gophers.md":   {},
+		"docs/spec/plantas.md":   {},
+		"docs/spec/interface.md": {},
 	})
 }

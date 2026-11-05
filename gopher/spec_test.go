@@ -17,6 +17,7 @@ func TestSpecParameterTablesMatchTheCode(t *testing.T) {
 		},
 		"../docs/spec/gophers.md": {
 			"gopher.initialSatiety":              initialSatiety,
+			"gopher.maxSatiety":                  maxSatiety,
 			"gopher.stepsPerSatiety":             stepsPerSatiety,
 			"gopher.hungryAt":                    hungryAt,
 			"gopher.walkEveryTicks":              walkEveryTicks,

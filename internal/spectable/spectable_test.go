@@ -38,6 +38,45 @@ func TestReadParsesTheParametersSection(t *testing.T) {
 	}
 }
 
+func TestReadAcceptsEveryPackageOfTheSpec(t *testing.T) {
+	// docs/spec/README.md, "Tabelas de parâmetros": o parâmetro tem o pacote
+	// na frente, e o pacote é main., game., gopher., world. ou logs.
+	got, err := Read("testdata/all_prefixes.md")
+	if err != nil {
+		t.Fatalf("Read devolveu erro %v, esperado nenhum", err)
+	}
+	want := Params{
+		"main.gopherCount":     60,
+		"game.plantsPerGopher": 2,
+		"gopher.hungryAt":      3,
+		"world.spawnAttempts":  20,
+		"logs.maxEntries":      8,
+	}
+	if !maps.Equal(got, want) {
+		t.Errorf("Read = %v, esperado %v", got, want)
+	}
+}
+
+func TestReadRejectsALineWithoutTheLeadingPipe(t *testing.T) {
+	// No Markdown do GitHub, a barra do começo da linha é opcional: uma linha
+	// sem ela ainda aparece na tabela. Dentro da seção ## Parâmetros, toda
+	// linha não vazia que não começa com | é um erro, em vez de sumir da
+	// conferência em silêncio (achado S7 do PR #10, aprovado na issue #2).
+	tests := []struct {
+		name, file string
+	}{
+		{"linha da tabela sem a barra do começo", "testdata/no_leading_pipe.md"},
+		{"linha de texto dentro da seção", "testdata/text_in_section.md"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := Read(tt.file); err == nil {
+				t.Errorf("Read(%q) aceitou uma linha sem | no começo dentro da seção, esperado um erro", tt.file)
+			}
+		})
+	}
+}
+
 func TestReadRejectsAValueThatIsNotANumber(t *testing.T) {
 	// A spec pede ponto decimal: "0,15" não é um número.
 	if _, err := Read("testdata/not_a_number.md"); err == nil {
@@ -117,6 +156,7 @@ func TestDiffIgnoresParametersOfOtherPackages(t *testing.T) {
 	// pacote só conhece os seus.
 	spec := Params{
 		"main.gopherCount":      60,
+		"game.plantsPerGopher":  2,
 		"gopher.ticksPerSecond": 60,
 		"world.ticksPerSecond":  60,
 		"logs.ticksPerSecond":   60,
@@ -176,10 +216,10 @@ func TestCheckPassesATableThatMatchesTheCode(t *testing.T) {
 
 func TestCheckFailsOnAParameterWithoutAKnownPackage(t *testing.T) {
 	// docs/spec/README.md, "Tabelas de parâmetros": o parâmetro tem o pacote
-	// na frente, e o pacote é main., gopher., world. ou logs. Uma linha fora
-	// disso (um erro de digitação, outro pacote ou nenhum pacote) não é de
-	// nenhum dos quatro testes, então precisa reprovar o teste de qualquer um
-	// deles, em vez de sumir em silêncio.
+	// na frente, e o pacote é main., game., gopher., world. ou logs. Uma
+	// linha fora disso (um erro de digitação, outro pacote ou nenhum pacote)
+	// não é de nenhum dos cinco testes, então precisa reprovar o teste de
+	// qualquer um deles, em vez de sumir em silêncio.
 	tests := []struct {
 		name, file, param string
 	}{
@@ -189,7 +229,7 @@ func TestCheckFailsOnAParameterWithoutAKnownPackage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			for _, pkg := range []string{"main", "gopher", "world", "logs"} {
+			for _, pkg := range []string{"main", "game", "gopher", "world", "logs"} {
 				// O arquivo também tem gopher.hungryAt, que o teste do
 				// pacote gopher conhece: a única linha errada é tt.param.
 				code := Params{}
@@ -237,8 +277,8 @@ func TestCheckFailsOnAnEmptyParameterCell(t *testing.T) {
 	// docs/spec/README.md, "Tabelas de parâmetros": o Parâmetro é a expressão
 	// Go entre crases, com o pacote na frente. Uma linha com a célula de
 	// parâmetro vazia não é de nenhum pacote, então precisa reprovar o teste
-	// de qualquer um dos quatro, em vez de sumir em silêncio.
-	for _, pkg := range []string{"main", "gopher", "world", "logs"} {
+	// de qualquer um dos cinco, em vez de sumir em silêncio.
+	for _, pkg := range []string{"main", "game", "gopher", "world", "logs"} {
 		// O arquivo também tem gopher.hungryAt, que o teste do pacote
 		// gopher conhece: a única linha errada é a de parâmetro vazio.
 		code := Params{}
