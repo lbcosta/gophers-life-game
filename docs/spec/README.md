@@ -34,6 +34,8 @@ Os arquivos com regras terminam numa seção `## Parâmetros` com os números qu
 - **Valor:** só o número, na unidade do código (ticks, pixels, graus ou pontos), com ponto decimal (`0.25`).
 - **Significado:** texto livre, que pode trazer a conversão para segundos.
 
+Todo arquivo de `docs/spec/` com a seção `## Parâmetros` precisa estar no teste de cada pacote. Uma tabela que nenhum teste lê faz o teste falhar.
+
 Quem muda uma constante à mão, enquanto joga, atualiza a tabela no mesmo commit (ou pede ao documentador).
 
 ## Como a spec muda
