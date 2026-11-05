@@ -174,7 +174,7 @@ func Check(t testing.TB, pkg string, files map[string]Params) {
 	// Os caminhos são comparados pela forma absoluta: Clean iguala
 	// "./docs/spec/x.md" a "docs/spec/x.md", mas não iguala um caminho
 	// absoluto a um relativo, e o mapa pode misturar as duas formas. As
-	// pastas guardadas já são absolutas, então o Glob devolve os arquivos
+	// pastas guardadas já são absolutas, então os arquivos listados saem
 	// na mesma forma das chaves de read.
 	dirs := map[string]bool{}
 	read := map[string]bool{}
@@ -197,12 +197,19 @@ func Check(t testing.TB, pkg string, files map[string]Params) {
 		}
 	}
 	for _, dir := range sortedDirs(dirs) {
-		entries, err := filepath.Glob(filepath.Join(dir, "*.md"))
+		// ReadDir em vez de Glob: o Glob trata o caminho inteiro como padrão,
+		// e um "[", "*", "?" ou "\\" no caminho do clone o faria devolver uma
+		// lista vazia, sem erro, e a conferência sumiria em silêncio.
+		entries, err := os.ReadDir(dir)
 		if err != nil {
 			t.Errorf("%v", err)
 			continue
 		}
-		for _, path := range entries {
+		for _, entry := range entries {
+			if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
+				continue
+			}
+			path := filepath.Join(dir, entry.Name())
 			if read[path] {
 				continue
 			}
