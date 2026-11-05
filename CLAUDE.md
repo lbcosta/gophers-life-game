@@ -36,6 +36,8 @@ O jogo abre em tela cheia, e o Claude não consegue olhar a tela nem clicar. Par
 
 O jogo roda no WSL2, com GPU NVIDIA. Sem `GALLIUM_DRIVER=d3d12`, o Mesa desenha com a CPU (o driver llvmpipe), e qualquer medida de FPS passa a ser da CPU, não do jogo. O `make run`, o F5 do VS Code e o harness já definem essa variável.
 
+Os commits são assinados pelo 1Password, e a assinatura faz parte do commit. Depois de um tempo parado, a primeira assinatura costuma falhar com `1Password: failed to fill whole buffer`: repita o mesmo commit. Se falhar de novo, pare e avise o mantenedor.
+
 ## Arquitetura
 
 - `main.go` cria a janela e liga os pacotes. É o único lugar que conhece `gopher`, `world`, `hud` e `logs` ao mesmo tempo.
