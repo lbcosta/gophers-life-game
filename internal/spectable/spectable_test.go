@@ -379,6 +379,37 @@ func TestCheckFailsOnATableNoTestReads(t *testing.T) {
 	}
 }
 
+func TestCheckFailsOnATableNoTestReadsInAFolderWithBracketsInItsName(t *testing.T) {
+	// docs/spec/README.md, "Tabelas de parâmetros": uma tabela que nenhum
+	// teste lê faz o teste falhar, seja qual for o nome da pasta. Colchetes
+	// podem aparecer no caminho do clone, e a conferência não pode sumir em
+	// silêncio por causa deles (achado S-5 da revisão do PR #35). Em
+	// testdata/uncovered[brackets]/, cited.md e forgotten.md têm a seção, e o
+	// mapa só traz cited.md, pelo caminho relativo ou pelo absoluto.
+	cited := "testdata/uncovered[brackets]/cited.md"
+	abs, err := filepath.Abs(cited)
+	if err != nil {
+		t.Fatalf("filepath.Abs devolveu erro %v", err)
+	}
+	tests := []struct {
+		name, key string
+	}{
+		{"caminho relativo", cited},
+		{"caminho absoluto", abs},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// cited.md só tem gopher.hungryAt, que o teste do pacote gopher
+			// conhece: a tabela lida está certa, e o único defeito é a outra.
+			rec := &recordingTB{TB: t}
+			Check(rec, "gopher", map[string]Params{tt.key: {"gopher.hungryAt": 3}})
+			if !rec.cites("forgotten.md") {
+				t.Errorf("Check com a chave %q, sem forgotten.md no mapa: falhas %q, esperada uma falha citando forgotten.md", tt.key, rec.failures)
+			}
+		})
+	}
+}
+
 func TestCheckAcceptsAMapKeyThatIsNotACleanPath(t *testing.T) {
 	// docs/spec/README.md, "Tabelas de parâmetros": a regra reprova a tabela
 	// que nenhum teste lê, não a que está no mapa. Um caminho escrito de outro
