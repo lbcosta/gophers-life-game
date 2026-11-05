@@ -3,7 +3,7 @@
 ## Desenho
 
 - **INT-01** — A Tela é desenhada nesta ordem, de baixo para cima: o gramado, as Plantas, as sombras de todos os Gophers, os Gophers, o anel da Seleção, a etiqueta do Hover, o Painel de perfil e o Log. Todas as sombras vêm antes de todos os Gophers, para que a sombra de um nunca cubra outro.
-- **INT-02** — O gramado é uma textura de grama repetida por toda a Tela e escurecida pelo fator `main.grassBrightness`, para os Gophers se destacarem.
+- **INT-02** — O gramado é uma textura de grama repetida por toda a Tela e escurecida pelo fator `game.grassBrightness`, para os Gophers se destacarem.
 - **INT-03** — A semente e a Planta crescendo têm desenhos próprios, iguais para todos os Alimentos. A Planta pronta mostra o seu Alimento. Cada desenho é um quadrado de lado 2 × `world.plantRadius`, centrado na Planta.
 - **INT-04** — A sombra de um Gopher é um disco preto semitransparente do tamanho do corpo, deslocado para a direita e para baixo. Ela não gira com o Gopher, porque a luz vem sempre de cima e da esquerda.
 - **INT-05** — Bebê e criança são um disco da cor do corpo. Adolescente e adulto são o desenho da fase, girado para a direção do desenho (GOP-15). As pupilas têm um brilho que fica sempre acima e à esquerda delas e não gira com o Gopher.
@@ -31,7 +31,7 @@
 
 | Parâmetro | Valor | Significado |
 |---|---|---|
-| `main.grassBrightness` | 0.6 | Brilho do gramado (1 é a textura original) |
+| `game.grassBrightness` | 0.6 | Brilho do gramado (1 é a textura original) |
 | `logs.maxEntries` | 8 | Mensagens guardadas no Log |
 | `logs.lifetime` | 600 | Ticks que uma Mensagem fica no Log (10 s) |
 | `logs.fadeTicks` | 60 | Ticks finais em que a Mensagem vai sumindo (1 s) |
