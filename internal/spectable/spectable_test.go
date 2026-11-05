@@ -333,6 +333,35 @@ func TestCheckFailsOnATableNoTestReads(t *testing.T) {
 	}
 }
 
+func TestCheckAcceptsAMapKeyThatIsNotACleanPath(t *testing.T) {
+	// docs/spec/README.md, "Tabelas de parâmetros": a regra reprova a tabela
+	// que nenhum teste lê, não a que está no mapa. Um caminho escrito de outro
+	// jeito, como "./testdata/covered/valid.md", aponta para o mesmo arquivo
+	// e conta como lido (achado S-1 da revisão do PR #35). testdata/covered/
+	// só tem valid.md, então nada mais pode reprovar o teste.
+	tests := []struct {
+		name, file string
+	}{
+		{"com ./ na frente", "./testdata/covered/valid.md"},
+		{"com barra dupla", "testdata//covered/valid.md"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := &recordingTB{TB: t}
+			Check(rec, "gopher", map[string]Params{
+				tt.file: {
+					"gopher.stepsPerSatiety":             1000,
+					"gopher.speedSteps[Slow]":            0.25,
+					"gopher.maturityRanges[Child-1].min": 600,
+				},
+			})
+			if rec.Failed() {
+				t.Errorf("Check com a chave %q: falhas %q, esperado nenhuma falha", tt.file, rec.failures)
+			}
+		})
+	}
+}
+
 func TestCheckIgnoresAFileWithoutTheParametersSection(t *testing.T) {
 	// A regra vale para os arquivos com a seção ## Parâmetros. Um arquivo que
 	// só cita a seção no meio do texto, como o docs/spec/README.md, não tem
