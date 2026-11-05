@@ -10,8 +10,6 @@ Simulação de vida artificial em Go com a Ebitengine. Gophers nascem, crescem, 
 
 Quando o código e a spec divergirem, aponte a divergência na issue ou no PR. Escolher um dos lados é decisão do mantenedor.
 
-Pendência: até a issue #1 ser concluída, o código ainda usa `Starving` e `personality.go`, enquanto o glossário já usa `BecameHungry` e `traits.go`.
-
 ## Como o trabalho acontece
 
 Toda mudança no repositório passa por quatro agentes de contexto isolado, definidos em `.claude/agents/`: **documentador**, **testador**, **programador** e **revisor** ([ADR-0003](docs/adr/0003-fluxo-de-quatro-agentes.md)). A sessão principal só orquestra, com três skills:
