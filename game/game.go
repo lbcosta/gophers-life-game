@@ -112,10 +112,9 @@ func (g *Game) Update() error {
 		return ebiten.Termination
 	}
 
-	g.Simulate()
-
-	// O tamanho da tela só é conhecido depois da primeira chamada a Layout.
-	if g.screen.X == 0 || g.screen.Y == 0 {
+	// Hover e Seleção só valem depois de o Mundo e a Colônia conhecerem a Tela
+	// (SIM-05), e é o Simulate que diz se o Tick avançou.
+	if !g.Simulate() {
 		return nil
 	}
 
@@ -136,8 +135,9 @@ func (g *Game) Update() error {
 
 // Simulate avança a simulação em um Tick, sem ler o mouse nem o teclado: o
 // Mundo, a Colônia e o Log. O Update chama este método, e o harness também, para
-// avançar Ticks sem input.
-func (g *Game) Simulate() {
+// avançar Ticks sem input. Devolve false, sem avançar, enquanto o Layout não
+// informou o tamanho da Tela (SIM-05).
+func (g *Game) Simulate() bool {
 	// Os sprites só podem ser desenhados com o jogo rodando, então são preparados
 	// uma única vez, no primeiro tick.
 	if !g.prerendered {
@@ -149,7 +149,7 @@ func (g *Game) Simulate() {
 
 	// O tamanho da tela só é conhecido depois da primeira chamada a Layout.
 	if g.screen.X == 0 || g.screen.Y == 0 {
-		return
+		return false
 	}
 
 	if g.screenChanged {
@@ -162,6 +162,7 @@ func (g *Game) Simulate() {
 		g.log.Add(logLevel(e.Kind), e.String())
 	}
 	g.log.Update()
+	return true
 }
 
 // Colony devolve a Colônia, para o harness escolher e apontar Gophers.
