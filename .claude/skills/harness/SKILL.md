@@ -1,6 +1,6 @@
 ---
 name: harness
-description: Ver e medir o Gophers Life sem olhar a tela. Roda o jogo numa janela com um cenário (N Gophers, avançar ticks, selecionar, hover), salva um screenshot e mede FPS, TPS, ms por tick e alocações. Use para conferir um critério visual, medir desempenho antes e depois de uma mudança, ou investigar lentidão e aquecimento.
+description: Ver e medir o Gophers Life sem olhar a tela. Roda o jogo numa janela com um cenário (N Gophers, avançar Ticks, selecionar, hover), salva um screenshot e mede FPS, TPS, ms por Tick e alocações. Use para conferir um critério visual, medir desempenho antes e depois de uma mudança, ou investigar lentidão e aquecimento.
 ---
 
 # Harness
@@ -11,7 +11,7 @@ Se `cmd/harness` não existir no seu branch, diga isso no relatório e meça só
 
 ## Use a GPU
 
-No WSL, rode sempre com `GALLIUM_DRIVER=d3d12` (o `make` não tem alvo para o harness, então a variável é sua; sem ela, o harness imprime um aviso no stderr). Sem essa variável, o Mesa desenha com a CPU (o driver llvmpipe), e o FPS medido é o da CPU, não o do jogo. Uma rodada com o aviso no stderr não entra na comparação (DES-08).
+No WSL, rode sempre com `GALLIUM_DRIVER=d3d12` (o `make` não tem alvo para o harness, então a variável é sua; sem ela, o harness imprime um aviso no stderr). Sem essa variável, o Mesa desenha com a CPU (o driver llvmpipe), e o FPS medido é o da CPU, não o do jogo. Uma rodada com o aviso no stderr não entra na comparação de DES-07 (DES-08).
 
 ## Contrato
 
@@ -20,22 +20,22 @@ No WSL, rode sempre com `GALLIUM_DRIVER=d3d12` (o `make` não tem alvo para o ha
 | Flag | Efeito |
 |---|---|
 | `-n N` | Número de Gophers (padrão 60) |
-| `-advance T` | Avança T ticks antes de abrir a janela. Com 3700, todos já são adultos |
+| `-advance T` | Avança T Ticks antes de abrir a janela. Com 3700, todos já são adultos |
 | `-select` | Seleciona um Gopher, o que abre o Painel de perfil |
 | `-hover` | Marca outro Gopher como Hover, a cada Tick, enquanto ele anda (sem mexer no mouse) |
-| `-shot arquivo.png` | Salva o frame 30 e sai |
-| `-dur 8s` | Descarta o primeiro segundo, mede por 8s e imprime uma linha: FPS, TPS, ms de update por tick, ms de draw por frame, alocações por frame e Gophers vivos. O ms de update conta só o Tick do jogo, sem o trabalho do próprio harness. |
+| `-shot arquivo.png` | Salva o Frame 30 e sai |
+| `-dur 8s` | Descarta o primeiro segundo, mede por 8s e imprime uma linha: FPS, TPS, ms de update por Tick, ms de draw por Frame, alocações por Frame e Gophers vivos. O ms de update conta só o Tick do jogo, sem o trabalho do próprio harness. |
 | `-cpuprofile arquivo` | Grava um perfil de CPU, para ler com `go tool pprof -top` |
 
 `-shot` e `-dur` não podem vir juntos: o harness recusa a combinação, explica o motivo no stderr e sai com código 2, sem abrir a janela.
 
-Compilado com `-tags ebitenginedebug`, a Ebitengine imprime os comandos de desenho de cada frame, o que serve para contar as chamadas à placa de vídeo.
+Compilado com `-tags ebitenginedebug`, a Ebitengine imprime os comandos de desenho de cada Frame, o que serve para contar as chamadas à placa de vídeo.
 
-O ms de draw é o tempo da CPU para emitir os comandos de desenho; o FPS é o que mede o frame inteiro. As alocações por frame contam tudo o que o processo aloca, inclusive a Ebitengine.
+O ms de draw é o tempo da CPU para emitir os comandos de desenho; o FPS é o que mede o Frame inteiro. As alocações por Frame contam tudo o que o processo aloca, inclusive a Ebitengine.
 
 Screenshots e perfis vão para o scratchpad ou para `/tmp`, nunca para o repositório.
 
 ## Receitas
 
 - **Critério visual:** `GALLIUM_DRIVER=d3d12 go run ./cmd/harness -n 40 -advance 3700 -select -shot <arquivo>`. Abra a imagem com Read e amplie os recortes que precisar conferir.
-- **Desempenho antes e depois:** rode, na mesma sessão, `make bench` uma vez sem a mudança e uma com ela. Se a mudança mexe no desenho, rode também `GALLIUM_DRIVER=d3d12 go run ./cmd/harness -n 1000 -advance 3700 -dur 8s` pelo menos três vezes sem a mudança e três com ela, e compare os ms de update por tick e de draw por frame, não o FPS. Uma rodada perto de 60 FPS é do ambiente, não do jogo (DES-01). Todos os resultados vão para o PR (DES-07).
+- **Desempenho antes e depois:** rode, na mesma sessão, `make bench` uma vez sem a mudança e uma com ela. Se a mudança mexe no desenho, rode também `GALLIUM_DRIVER=d3d12 go run ./cmd/harness -n 1000 -advance 3700 -dur 8s` pelo menos três vezes sem a mudança e três com ela, e compare os ms de update por Tick e de draw por Frame, não o FPS. Uma rodada perto de 60 FPS é do ambiente, não do jogo (DES-01). Todos os resultados vão para o PR (DES-07).
